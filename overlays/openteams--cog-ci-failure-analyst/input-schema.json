@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CI failure bundle",
+  "description": "Input for openteams/cog-ci-failure-analyst. PROPOSED contract: this file is what the manifest would reference as context.input_schema — shipped here as a workbench overlay so the frozen forge package stays untouched.",
+  "type": "object",
+  "required": ["repository", "commit", "evidence"],
+  "properties": {
+    "repository": {
+      "type": "string",
+      "description": "Repository name, e.g. org/name"
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "FULL 40-character sha the job ran against (a provenance pin, not a label)"
+    },
+    "job": {
+      "type": "string",
+      "description": "Failed job / workflow name"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Bundle caveats (redactions, truncations) — the model sees these too",
+      "x-cog-input": { "widget": "textarea" }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Evidence items. Pick files (job log, workflow, diff, run history) and they become items — ids must be unique, content non-empty.",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "content"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["job-log", "workflow", "diff", "run-history", "environment"] },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "x-cog-input": { "source": "file", "encoding": "text" }
+          }
+        }
+      },
+      "x-cog-input": { "builder": "file-items", "file_field": "content", "id_prefix": "ev-" }
+    }
+  }
+}

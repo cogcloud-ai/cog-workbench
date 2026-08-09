@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Commit bundle",
+  "description": "Input for openteams/cog-release-notes. PROPOSED contract: this file is what the manifest would reference as context.input_schema — shipped here as a workbench overlay so the frozen forge package stays untouched.",
+  "type": "object",
+  "required": ["repository", "from_ref", "to_ref", "audience", "commits"],
+  "properties": {
+    "repository": {
+      "type": "string",
+      "description": "Repository name or credential-sanitized remote URL"
+    },
+    "from_ref": {
+      "type": "string",
+      "description": "Older ref (exclusive end of the range)"
+    },
+    "to_ref": {
+      "type": "string",
+      "default": "HEAD",
+      "description": "Newer ref"
+    },
+    "audience": {
+      "enum": ["users", "developers", "maintainers"],
+      "default": "users",
+      "description": "Who the notes are written for"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Bundle caveats (e.g. truncations) — the model sees these too",
+      "x-cog-input": { "widget": "textarea" }
+    },
+    "commits": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Commits in the range, full 40-char ids. Build one with the Cog's own `pixi run bundle`, load an example as a template, or edit JSON directly.",
+      "items": {
+        "type": "object",
+        "required": ["id", "subject"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+          "subject": { "type": "string" },
+          "body": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "x-cog-input": { "builder": "json" }
+    }
+  }
+}

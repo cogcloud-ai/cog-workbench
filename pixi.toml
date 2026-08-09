@@ -1,0 +1,33 @@
+[workspace]
+name = "cog-workbench"
+version = "0.1.0"
+description = "The gap-filled reference client: schema-driven forms with file pickers, runnable operations with live logs, working chat, activity journal. An invocation environment with its authority made explicit."
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[dependencies]
+python = ">=3.11"
+pyyaml = "*"
+
+[tasks]
+# Inspector card + affordances for any Cog package:
+#   pixi run show -- ../cog-forge/cog-release-notes
+show = "python src/cog_client_cli.py show"
+
+# Generic invocation of a task-shaped Cog through its declared entry point:
+#   pixi run ask -- ../cog-forge/cog-release-notes --bundle bundle.json
+ask = "python src/cog_client_cli.py ask"
+
+# Client-held-thread chat against an openai-compatible entry point:
+#   pixi run chat -- ../cog-demo/cog-qwen3b
+chat = "python src/cog_client_cli.py chat"
+
+# Probe every declared health surface:
+health = "python src/cog_client_cli.py health"
+
+# The web UI (loopback only):
+#   pixi run serve -- --path ../cog-forge/cog-release-notes
+serve = "python src/cog_workbench_web.py"
+
+# Model-free deterministic tests.
+test = "python -m unittest discover -s tests -v"

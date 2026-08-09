@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cog-workbench</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1a2333; --muted: #66708a;
+    --line: #e3e6ee; --accent: #2f5fd0; --ok: #1a7f4e; --warn: #b3600f;
+    --bad: #b3362b; --chip: #eef1f7; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); }
+  header { background: var(--card); border-bottom: 1px solid var(--line);
+           padding: 13px 22px; display: flex; gap: 10px; align-items: center; }
+  header h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 650; }
+  header input { flex: 1; padding: 7px 10px; border: 1px solid var(--line);
+                 border-radius: 7px; font-family: var(--mono); font-size: 12.5px; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 7px;
+           padding: 7px 13px; font-size: 13px; cursor: pointer; }
+  button.ghost { background: var(--chip); color: var(--ink); }
+  button.danger { background: var(--bad); }
+  button:disabled { opacity: .45; cursor: default; }
+  main { max-width: 1150px; margin: 20px auto; padding: 0 22px;
+         display: grid; grid-template-columns: 360px 1fr; gap: 18px; align-items: start; }
+  .card { background: var(--card); border: 1px solid var(--line);
+          border-radius: 10px; padding: 15px 17px; margin-bottom: 14px; }
+  .card h2 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em;
+             color: var(--muted); margin: 0 0 9px; }
+  .idline { font-size: 16px; font-weight: 650; }
+  .kind { display: inline-block; background: var(--chip); border-radius: 20px;
+          padding: 1px 10px; font-size: 11.5px; margin-left: 8px; color: var(--muted); }
+  .summary { color: var(--muted); margin: 6px 0 0; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+  dt { color: var(--muted); } dd { margin: 0; font-family: var(--mono); font-size: 12.5px; }
+  .chips span { display: inline-block; background: var(--chip); border-radius: 6px;
+                padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 12px;
+                font-family: var(--mono); }
+  .iface { display: flex; gap: 8px; align-items: baseline; padding: 3px 0;
+           font-family: var(--mono); font-size: 12.5px; }
+  .iface .k { color: var(--muted); }
+  .default { color: var(--accent); font-weight: 600; }
+  .gap { background: #fff7ec; border-left: 3px solid var(--warn); color: #7a4a10;
+         font-size: 12.5px; padding: 6px 10px; border-radius: 0 6px 6px 0; margin: 8px 0; }
+  .info { background: #eef4ff; border-left: 3px solid var(--accent); color: #274a8f;
+          font-size: 12.5px; padding: 6px 10px; border-radius: 0 6px 6px 0; margin: 8px 0; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { background: var(--chip); color: var(--ink); }
+  .tabs button.active { background: var(--accent); color: #fff; }
+  textarea { width: 100%; font-family: var(--mono); font-size: 12px;
+             border: 1px solid var(--line); border-radius: 7px; padding: 9px; }
+  input[type=text], input[type=number] { padding: 7px 9px; border: 1px solid var(--line);
+             border-radius: 7px; font-size: 13px; width: 100%; }
+  select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; }
+  .row { display: flex; gap: 8px; align-items: center; margin: 7px 0; flex-wrap: wrap; }
+  pre { background: #0f1524; color: #dfe6f5; border-radius: 8px; padding: 12px;
+        font-size: 12px; overflow: auto; max-height: 380px; }
+  pre.logs { max-height: 260px; font-size: 11.5px; }
+  .problems li { color: var(--bad); font-size: 13px; }
+  .bindline { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: 6px 0; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); }
+  .field { margin: 10px 0; }
+  .field > label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+  .field .desc { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .req { color: var(--bad); }
+  .evrow { display: grid; grid-template-columns: 110px 150px 1fr auto auto; gap: 6px;
+           align-items: center; margin: 5px 0; }
+  .filename { font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .op { display: flex; gap: 8px; align-items: center; padding: 7px 0;
+        border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .op:last-child { border-bottom: 0; }
+  .op .name { font-family: var(--mono); font-size: 12.5px; min-width: 220px; }
+  .op .tier { font-size: 11px; color: var(--muted); }
+  .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+                background: #c6ccd9; }
+  .status-dot.up { background: var(--ok); } .status-dot.down { background: var(--bad); }
+  .thread { display: flex; flex-direction: column; gap: 8px; max-height: 380px;
+            overflow: auto; padding: 4px 0; }
+  .msg { max-width: 85%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff;
+              border-bottom-right-radius: 3px; }
+  .msg.assistant { align-self: flex-start; background: var(--chip);
+                   border-bottom-left-radius: 3px; }
+  .chatline { display: flex; gap: 8px; margin-top: 10px; }
+  .chatline input { flex: 1; }
+  .note { font-size: 12px; color: var(--muted); }
+  table.activity { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.activity td, table.activity th { text-align: left; padding: 4px 8px;
+        border-bottom: 1px solid var(--line); font-family: var(--mono); }
+  #empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 60px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>cog-workbench</h1>
+  <input id="path" placeholder="path to a Cog package (a directory containing cog.yaml)…">
+  <button onclick="load()">Open</button>
+</header>
+<main id="main"><div id="empty">Point me at a Cog. I render what it declares — and now I can run it.</div></main>
+
+<script>
+const PRELOAD = __PRELOAD_PATH__;
+let CARD = null, THREAD = [], POLL = null, ACTIVE_LOG_KEY = null;
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(route, opts) {
+  const r = await fetch(route, opts);
+  return { status: r.status, body: await r.json() };
+}
+function post(route, payload) {
+  return api(route, { method: "POST", headers: {"Content-Type": "application/json"},
+                      body: JSON.stringify(payload) });
+}
+
+async function load() {
+  const path = $("#path").value.trim();
+  if (!path) return;
+  const r = await api("/api/package?path=" + encodeURIComponent(path));
+  if (r.body.error) { $("#main").innerHTML = `<div id="empty">${esc(r.body.error)}</div>`; return; }
+  CARD = r.body; THREAD = [];
+  render();
+}
+
+function chips(arr) {
+  return `<span class="chips">${(arr||[]).map(x => `<span>${esc(x)}</span>`).join("")}</span>`;
+}
+
+function render() {
+  const c = CARD, left = [];
+  left.push(`<div class="card">
+    <div class="idline">${esc(c.id)} <span class="kind">${esc(c.kind)} · v${esc(c.version)}</span></div>
+    <p class="summary">${esc(c.summary)}</p>
+    <dl><dt>owner</dt><dd>${esc(c.owner)}</dd>
+        <dt>license</dt><dd>${esc(c.license)}</dd>
+        <dt>schema</dt><dd>${esc(c.schema)}</dd></dl></div>`);
+  left.push(`<div class="card"><h2>Entry points</h2>` +
+    c.interfaces.map(i => `<div class="iface">
+      <span class="${i.default ? "default" : ""}">${esc(i.name)}</span>
+      <span class="k">[${esc(i.kind)}]</span>
+      <span>${esc(i.endpoint || (i.address ? "address: " + i.address : ""))}</span></div>`).join("") +
+    (c.io ? `<div class="note" style="margin-top:6px">io: ${esc(JSON.stringify(c.io.accepts))}
+             → ${esc(JSON.stringify(c.io.produces))}</div>` : "") + `</div>`);
+  if (c.requires.length) {
+    left.push(`<div class="card"><h2>Requires</h2>` + c.requires.map(r =>
+      `<div class="note">${esc(r.capability)}</div>` +
+      chips(r.satisfiers.map(s => (s.cog || s.source)))).join("") + `</div>`);
+  }
+  if (c.prohibits.length) left.push(`<div class="card"><h2>Prohibits</h2>${chips(c.prohibits)}</div>`);
+  if (c.binding) {
+    const b = c.binding;
+    left.push(`<div class="card"><h2>Binding (installation state)</h2>
+      <div class="bindline">${b.error ? `<span class="bad">${esc(b.error)}</span>` :
+        `${esc(b.satisfier)}<br>at ${esc(b.endpoint)}<br>pinned=<b class="${b.pinned ? "ok" : "warn"}">${b.pinned}</b>`}</div></div>`);
+  } else {
+    left.push(`<div class="card"><h2>Binding</h2><div class="note">none — use the
+      <b>resolve</b> button in Operations to bind.</div></div>`);
+  }
+  const schema = c.input_schema || {};
+  left.push(`<div class="card"><h2>Input contract</h2><div class="note">
+    ${schema.schema ? `<b class="ok">present</b> (source: ${esc(schema.source)})` :
+      `<b class="warn">none</b> — examples are the only template`}</div></div>`);
+
+  const tabs = [];
+  if (c.affordances.some(a => a.type === "task")) tabs.push("Run");
+  if (c.affordances.some(a => a.type === "chat")) tabs.push("Chat");
+  tabs.push("Operations", "Health", "Activity");
+  const right = `<div class="card">
+    <div class="tabs">${tabs.map((t, i) =>
+      `<button id="tab-${t}" class="${i === 0 ? "active" : ""}" onclick="showTab('${t}')">${t}</button>`).join("")}</div>
+    <div id="panel"></div></div>`;
+  $("#main").innerHTML = `<div>${left.join("")}</div><div>${right}</div>`;
+  showTab(tabs[0]);
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b =>
+    b.classList.toggle("active", b.id === "tab-" + name));
+  clearInterval(POLL); POLL = null; ACTIVE_LOG_KEY = null;
+  ({Run: renderRun, Chat: renderChat, Operations: renderOps,
+    Health: renderHealth, Activity: renderActivity}[name])();
+}
+
+/* ---------------- Run: schema-driven form --------------------------------- */
+
+function renderRun() {
+  const a = CARD.affordances.find(x => x.type === "task");
+  const s = CARD.input_schema || {};
+  let formHtml;
+  if (s.schema) {
+    formHtml = buildForm(s.schema);
+  } else {
+    formHtml = `<div class="gap">no input schema (GAPS #2) — raw JSON with example templates.</div>
+      <textarea id="rawbundle" style="min-height:220px"></textarea>`;
+  }
+  $("#panel").innerHTML = `
+    ${s.source === "overlay" ? `<div class="info">form generated from a PROPOSED input schema
+      (workbench overlay — the text this Cog's manifest would gain as
+      <code>context.input_schema</code>).</div>` : ""}
+    <div class="row">
+      <label class="note">template:</label>
+      <select id="example" onchange="applyExample()">
+        <option value="">(blank)</option>
+        ${a.examples.map(e => `<option>${esc(e)}</option>`).join("")}
+      </select>
+      <span class="note">→ POST ${esc(a.endpoint)}</span>
+    </div>
+    <div id="form">${formHtml}</div>
+    <div class="row"><button onclick="invoke()">Submit</button>
+      <button class="ghost" onclick="showJson()">View JSON</button>
+      <span id="busy" class="note"></span></div>
+    <div id="result"></div>`;
+}
+
+function buildForm(schema) {
+  const req = new Set(schema.required || []);
+  let html = "";
+  for (const [key, prop] of Object.entries(schema.properties || {})) {
+    const x = prop["x-cog-input"] || {};
+    const label = `<label>${esc(key)}${req.has(key) ? ' <span class="req">*</span>' : ""}</label>
+      ${prop.description ? `<div class="desc">${esc(prop.description)}</div>` : ""}`;
+    if (prop.enum) {
+      html += `<div class="field">${label}<select data-field="${esc(key)}">
+        ${prop.enum.map(v => `<option ${v === prop.default ? "selected" : ""}>${esc(v)}</option>`).join("")}
+        </select></div>`;
+    } else if (prop.type === "boolean") {
+      html += `<div class="field">${label}<input type="checkbox" data-field="${esc(key)}"></div>`;
+    } else if (prop.type === "array" && x.builder === "file-items") {
+      html += `<div class="field">${label}
+        <div id="items-${esc(key)}" data-fileitems="${esc(key)}"
+             data-filefield="${esc(x.file_field)}" data-idprefix="${esc(x.id_prefix || "item-")}"></div>
+        <button class="ghost" type="button" onclick="addFileItem('${esc(key)}')">+ Add item from file…</button>
+      </div>`;
+    } else if (prop.type === "array" || prop.type === "object" || x.builder === "json") {
+      html += `<div class="field">${label}
+        <textarea data-field="${esc(key)}" data-json="1" style="min-height:130px"
+          placeholder="JSON…"></textarea></div>`;
+    } else if (x.widget === "textarea") {
+      html += `<div class="field">${label}<textarea data-field="${esc(key)}"
+        style="min-height:60px"></textarea></div>`;
+    } else if (prop.type === "integer" || prop.type === "number") {
+      html += `<div class="field">${label}<input type="number" data-field="${esc(key)}"></div>`;
+    } else {
+      html += `<div class="field">${label}<input type="text" data-field="${esc(key)}"
+        value="${esc(prop.default || "")}"></div>`;
+    }
+  }
+  return html;
+}
+
+let FILE_ITEMS = {};   // key -> [{id, type, content, filename}]
+
+function addFileItem(key) {
+  const container = document.querySelector(`[data-fileitems="${key}"]`);
+  const schema = CARD.input_schema.schema.properties[key];
+  const types = ((schema.items.properties || {}).type || {}).enum || [];
+  const picker = document.createElement("input");
+  picker.type = "file";
+  picker.onchange = () => {
+    const file = picker.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      FILE_ITEMS[key] = FILE_ITEMS[key] || [];
+      const n = FILE_ITEMS[key].length + 1;
+      const prefix = container.dataset.idprefix;
+      const guessed = guessType(file.name, types);
+      FILE_ITEMS[key].push({ id: prefix + guessed.split("-")[0] + (n > 1 ? "-" + n : ""),
+                             type: guessed, content: reader.result, filename: file.name });
+      renderFileItems(key);
+    };
+    reader.readAsText(file);
+  };
+  picker.click();
+}
+
+function guessType(name, types) {
+  const n = name.toLowerCase();
+  if (n.includes("log")) return "job-log";
+  if (n.endsWith(".yml") || n.endsWith(".yaml") || n.includes("workflow")) return "workflow";
+  if (n.endsWith(".patch") || n.endsWith(".diff")) return "diff";
+  if (n.includes("hist") || n.includes("runs")) return "run-history";
+  return types[0] || "job-log";
+}
+
+function renderFileItems(key) {
+  const container = document.querySelector(`[data-fileitems="${key}"]`);
+  const schema = CARD.input_schema.schema.properties[key];
+  const types = ((schema.items.properties || {}).type || {}).enum || [];
+  container.innerHTML = (FILE_ITEMS[key] || []).map((it, idx) => `
+    <div class="evrow">
+      <input type="text" value="${esc(it.id)}" onchange="FILE_ITEMS['${key}'][${idx}].id=this.value">
+      <select onchange="FILE_ITEMS['${key}'][${idx}].type=this.value">
+        ${types.map(t => `<option ${t === it.type ? "selected" : ""}>${esc(t)}</option>`).join("")}
+      </select>
+      <span class="filename">${esc(it.filename)} · ${it.content.length.toLocaleString()} chars</span>
+      <button class="ghost" onclick="previewItem('${key}',${idx})">view</button>
+      <button class="danger" onclick="FILE_ITEMS['${key}'].splice(${idx},1);renderFileItems('${key}')">✕</button>
+    </div>`).join("");
+}
+
+function previewItem(key, idx) {
+  const it = FILE_ITEMS[key][idx];
+  $("#result").innerHTML = `<div class="note">${esc(it.filename)} (${esc(it.type)}):</div>
+    <pre>${esc(it.content.slice(0, 4000))}${it.content.length > 4000 ? "\n…" : ""}</pre>`;
+}
+
+function collectForm() {
+  const s = CARD.input_schema || {};
+  if (!s.schema) {
+    return JSON.parse($("#rawbundle").value || "{}");
+  }
+  const bundle = {};
+  document.querySelectorAll("#form [data-field]").forEach(el => {
+    const key = el.dataset.field;
+    let v;
+    if (el.type === "checkbox") v = el.checked;
+    else if (el.dataset.json) { v = el.value.trim() ? JSON.parse(el.value) : undefined; }
+    else if (el.type === "number") v = el.value === "" ? undefined : Number(el.value);
+    else v = el.value.trim() || undefined;
+    if (v !== undefined) bundle[key] = v;
+  });
+  document.querySelectorAll("#form [data-fileitems]").forEach(el => {
+    const key = el.dataset.fileitems;
+    const items = (FILE_ITEMS[key] || []).map(({filename, ...rest}) => rest);
+    if (items.length) bundle[key] = items;
+  });
+  return bundle;
+}
+
+async function applyExample() {
+  const name = $("#example").value;
+  if (!name) return;
+  const r = await api(`/api/example?path=${encodeURIComponent(CARD.root)}&name=${encodeURIComponent(name)}`);
+  const data = JSON.parse(r.body.content);
+  const s = CARD.input_schema || {};
+  if (!s.schema) { $("#rawbundle").value = JSON.stringify(data, null, 2); return; }
+  FILE_ITEMS = {};
+  document.querySelectorAll("#form [data-field]").forEach(el => {
+    const key = el.dataset.field;
+    if (!(key in data)) return;
+    if (el.type === "checkbox") el.checked = !!data[key];
+    else if (el.dataset.json) el.value = JSON.stringify(data[key], null, 2);
+    else el.value = data[key];
+  });
+  document.querySelectorAll("#form [data-fileitems]").forEach(el => {
+    const key = el.dataset.fileitems;
+    FILE_ITEMS[key] = (data[key] || []).map(it => ({...it, filename: "(from example)"}));
+    renderFileItems(key);
+  });
+}
+
+function showJson() {
+  try {
+    $("#result").innerHTML = `<pre>${esc(JSON.stringify(collectForm(), null, 2))}</pre>`;
+  } catch (e) {
+    $("#result").innerHTML = `<div class="gap">${esc(e.message)}</div>`;
+  }
+}
+
+async function invoke() {
+  let bundle;
+  try { bundle = collectForm(); }
+  catch (e) { $("#result").innerHTML = `<div class="gap">form error: ${esc(e.message)}</div>`; return; }
+  $("#busy").textContent = "invoking…";
+  const r = await post("/api/invoke", { path: CARD.root, bundle });
+  $("#busy").textContent = "";
+  const b = r.body;
+  if (b.transport_error) {
+    $("#result").innerHTML = `<div class="gap">transport: ${esc(b.transport_error)}</div>
+      <div class="info">the Cog isn't serving — open <b>Operations</b> and start its
+      dependency, resolve, then start its web-api. <button class="ghost"
+      onclick="showTab('Operations')">Take me there</button></div>`;
+    return;
+  }
+  if (b.error) {
+    $("#result").innerHTML = `<div class="gap">${esc(b.error)} (HTTP ${b.status}):
+      ${esc(JSON.stringify(b.detail))}</div>`;
+    return;
+  }
+  const rec = (b.binding || {}).record || {};
+  const idok = (b.binding || {}).model_identity === "verified";
+  $("#result").innerHTML = `
+    <div class="bindline">payload <b>[${esc(b.payload_key)}]</b> ·
+      model ${esc(rec.model)} · identity <b class="${idok ? "ok" : "warn"}">
+      ${esc((b.binding || {}).model_identity)}</b> · pinned ${esc(String(rec.pinned))} ·
+      ${esc(String(b.latency_s))}s</div>
+    ${(b.problems || []).length ? `<ul class="problems">${b.problems.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    <pre>${esc(JSON.stringify(b.payload, null, 2))}</pre>
+    ${(b.gaps || []).map(g => `<div class="gap">gap: ${esc(g)}</div>`).join("")}`;
+}
+
+/* ---------------- Chat ---------------------------------------------------- */
+
+async function renderChat() {
+  const a = CARD.affordances.find(x => x.type === "chat");
+  $("#panel").innerHTML = `
+    <div class="note">client-held thread, stateless Cog turns (§6.6) —
+      ${esc(a.served_model_id || "served model")}${a.api_key_env ? ` · key from $${esc(a.api_key_env)}` : ""}</div>
+    ${a.address_install_time ? `<div class="row"><label class="note">endpoint (install-time address):</label>
+      <input type="text" id="chat-endpoint" style="flex:1" placeholder="http://host/v1"></div>` : ""}
+    <div id="chat-status"></div>
+    <div class="thread" id="thread"></div>
+    <div class="chatline">
+      <input id="chat-in" placeholder="message…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button onclick="sendChat()">Send</button>
+    </div>`;
+  renderThread();
+  if (a.endpoint) {
+    const h = await api("/api/health?path=" + encodeURIComponent(CARD.root));
+    const mine = (h.body.results || []).find(x => x.interface === a.interface);
+    if (mine && !mine.ok) {
+      $("#chat-status").innerHTML = `<div class="gap">the model endpoint isn't answering
+        (${esc(a.endpoint)}). <button class="ghost" onclick="showTab('Operations')">
+        Start it in Operations</button></div>`;
+    } else if (mine) {
+      $("#chat-status").innerHTML = `<div class="info">endpoint is up — say something.</div>`;
+    }
+  }
+}
+
+function renderThread() {
+  const t = $("#thread");
+  if (!t) return;
+  t.innerHTML = THREAD.map(m => `<div class="msg ${m.role}">${esc(m.content)}</div>`).join("");
+  t.scrollTop = t.scrollHeight;
+}
+
+async function sendChat() {
+  const inp = $("#chat-in"), text = inp.value.trim();
+  if (!text) return;
+  inp.value = "";
+  THREAD.push({ role: "user", content: text });
+  renderThread();
+  const epBox = $("#chat-endpoint");
+  const r = await post("/api/chat", { path: CARD.root, messages: THREAD,
+                                      endpoint: epBox ? epBox.value.trim() : undefined });
+  const b = r.body;
+  if (!b.ok) {
+    THREAD.pop(); renderThread();
+    $("#chat-status").innerHTML = `<div class="gap">turn failed:
+      ${esc(b.transport_error || b.error)} — is the model serving?
+      <button class="ghost" onclick="showTab('Operations')">Operations</button></div>`;
+    return;
+  }
+  $("#chat-status").innerHTML = "";
+  THREAD.push({ role: "assistant", content: b.text });
+  renderThread();
+}
+
+/* ---------------- Operations ---------------------------------------------- */
+
+async function renderOps() {
+  const ops = CARD.operations || [];
+  $("#panel").innerHTML = `
+    <div class="info">buttons run only tasks this Cog <b>declares</b> — its interfaces,
+      its binding machinery, and its declared dependencies. Nothing free-form.</div>
+    <div id="oplist">${ops.map((o, i) => opRow(o, i)).join("")}</div>
+    <div id="oplogs"></div>`;
+  await refreshOps();
+  POLL = setInterval(refreshOps, 1500);
+}
+
+function opRow(o, i) {
+  return `<div class="op" id="op-${i}">
+    <span class="status-dot" id="dot-${i}"></span>
+    <span class="name">${esc(o.label)}${o.dependency ? " ⭱" : ""}</span>
+    ${o.mode === "service"
+      ? `<button id="btn-${i}" onclick="startOp(${i})">Start</button>
+         <button class="danger" id="stop-${i}" onclick="stopOp(${i})" disabled>Stop</button>`
+      : `<input type="text" id="args-${i}" placeholder="${esc(o.args_hint || "args…")}"
+           style="width:230px">
+         <button id="btn-${i}" onclick="startOp(${i})">Run</button>`}
+    <button class="ghost" onclick="viewLogs(${i})">logs</button>
+    <span class="tier" id="tier-${i}"></span>
+  </div>`;
+}
+
+function opKey(o) { return o.root + "::" + o.task; }
+
+async function refreshOps() {
+  const r = await api("/api/procs");
+  const procs = {};
+  (r.body.procs || []).forEach(p => procs[p.key] = p);
+  (CARD.operations || []).forEach((o, i) => {
+    const p = procs[opKey(o)];
+    const dot = $("#dot-" + i), stop = $("#stop-" + i), tier = $("#tier-" + i);
+    if (!dot) return;
+    dot.className = "status-dot " + (p ? (p.running ? "up" : (p.returncode === 0 ? "" : "down")) : "");
+    if (stop) stop.disabled = !(p && p.running);
+    if (tier && p) tier.textContent =
+      (p.running ? `pid ${p.pid} · up ${p.uptime_s}s · ` : `exit ${p.returncode} · `) + p.tier;
+  });
+  if (ACTIVE_LOG_KEY) {
+    const lr = await api("/api/op/logs?key=" + encodeURIComponent(ACTIVE_LOG_KEY) + "&tail=120");
+    if (lr.status === 200) {
+      const el = $("#oplogpre");
+      if (el) { el.textContent = lr.body.lines.join("\n"); el.scrollTop = el.scrollHeight; }
+    }
+  }
+}
+
+async function startOp(i) {
+  const o = CARD.operations[i];
+  const argsEl = $("#args-" + i);
+  const r = await post("/api/op/start", { path: CARD.root, root: o.root, task: o.task,
+                                          args: argsEl ? argsEl.value : "" });
+  if (r.body.error) {
+    $("#oplogs").innerHTML = `<div class="gap">${esc(r.body.error)}</div>`;
+    return;
+  }
+  viewLogs(i);
+}
+
+async function stopOp(i) {
+  await post("/api/op/stop", { key: opKey(CARD.operations[i]) });
+  refreshOps();
+}
+
+function viewLogs(i) {
+  const o = CARD.operations[i];
+  ACTIVE_LOG_KEY = opKey(o);
+  $("#oplogs").innerHTML = `<div class="note" style="margin-top:10px">
+    ${esc(o.label)} — live log:</div><pre class="logs" id="oplogpre">…</pre>`;
+  refreshOps();
+}
+
+/* ---------------- Health / Activity --------------------------------------- */
+
+async function renderHealth() {
+  $("#panel").innerHTML = `<div class="row"><button onclick="renderHealth()">Probe again</button></div>
+    <div id="health">probing…</div>`;
+  const r = await api("/api/health?path=" + encodeURIComponent(CARD.root));
+  $("#health").innerHTML = (r.body.results || []).map(x =>
+    `<div class="iface"><b class="${x.ok ? "ok" : "bad"}">${x.ok ? "ok" : "DOWN"}</b>
+     <span>${esc(x.interface)}</span>
+     <span class="k">${x.ok ? "" : esc(x.error || x.status)}</span></div>`).join("")
+    || `<div class="note">no probeable surfaces declared</div>`;
+}
+
+async function renderActivity() {
+  const r = await api("/api/activity?tail=40");
+  const rows = (r.body.entries || []).reverse().map(e =>
+    `<tr><td>${esc(e.ts)}</td><td>${esc(e.event)}</td><td>${esc(e.cog)}</td>
+     <td>${esc(e.task || e.model || e.model_echoed || "")}</td>
+     <td>${e.ok === undefined ? "" : (e.ok ? "ok" : "failed")}
+         ${e.problems ? ` · ${e.problems} problem(s)` : ""}
+         ${e.identity ? ` · ${esc(e.identity)}` : ""}</td></tr>`).join("");
+  $("#panel").innerHTML = `<div class="note">the minimal §6.6 audit surround — every start,
+    stop, invocation, and chat turn this workbench performed:</div>
+    <table class="activity"><tr><th>when</th><th>event</th><th>cog</th><th>what</th><th>outcome</th></tr>
+    ${rows || "<tr><td colspan=5>nothing yet</td></tr>"}</table>`;
+}
+
+if (PRELOAD) { $("#path").value = PRELOAD; load(); }
+</script>
+</body>
+</html>
