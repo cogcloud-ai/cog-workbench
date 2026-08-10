@@ -91,6 +91,23 @@
   table.activity td, table.activity th { text-align: left; padding: 4px 8px;
         border-bottom: 1px solid var(--line); font-family: var(--mono); }
   #empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 60px 0; }
+  .modal { position: fixed; inset: 0; background: rgba(15,23,42,.45);
+           display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal .box { background: #fff; border-radius: 10px; width: min(720px, 92vw);
+                max-height: 80vh; overflow: auto; padding: 16px 20px;
+                box-shadow: 0 12px 40px rgba(0,0,0,.28); }
+  .modal .dirline { font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+                    margin: 6px 0 10px; word-break: break-all; }
+  .modal .direntry { display: inline-block; margin: 2px 6px 2px 0; padding: 3px 10px;
+                     border: 1px solid var(--line); border-radius: 14px; cursor: pointer;
+                     font-size: 13px; }
+  .modal .direntry:hover { background: #f1f5f9; }
+  .modal .cogrow { display: flex; align-items: baseline; gap: 8px; padding: 7px 4px;
+                   border-top: 1px solid var(--line); }
+  .modal .cogrow .cid { font-family: var(--mono); font-size: 13px; }
+  .modal .cogrow .k { font-size: 11.5px; color: var(--muted); }
+  .modal .cogrow .sum { flex: 1; font-size: 12px; color: var(--muted);
+                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -98,7 +115,9 @@
   <h1>cog-workbench</h1>
   <input id="path" placeholder="path to a Cog package (a directory containing cog.yaml)…">
   <button onclick="load()">Open</button>
+  <button class="ghost" onclick="openBrowser()">Browse…</button>
 </header>
+<div id="browser" style="display:none"></div>
 <main id="main"><div id="empty">Point me at a Cog. I render what it declares — and now I can run it.</div></main>
 
 <script>
@@ -116,6 +135,59 @@ async function api(route, opts) {
 function post(route, payload) {
   return api(route, { method: "POST", headers: {"Content-Type": "application/json"},
                       body: JSON.stringify(payload) });
+}
+
+/* ---------------- Browse: find Cogs without typing paths ------------------- */
+
+let BROWSE_DIR = null, BROWSE_PATHS = { dirs: [], cogs: [], up: null };
+
+async function openBrowser(dir) {
+  const el = $("#browser");
+  el.style.display = "";
+  el.className = "modal";
+  el.innerHTML = `<div class="box"><b>Open a Cog</b> <span class="note">scanning…</span></div>`;
+  el.onclick = (e) => { if (e.target === el) closeBrowser(); };
+  const r = await api("/api/browse" + (dir ? "?dir=" + encodeURIComponent(dir) : ""));
+  if (r.body.error) {
+    el.innerHTML = `<div class="box"><b>Open a Cog</b>
+      <div class="gap">${esc(r.body.error)}</div>
+      <button class="ghost" onclick="closeBrowser()">Close</button></div>`;
+    return;
+  }
+  const b = r.body;
+  BROWSE_DIR = b.dir;
+  BROWSE_PATHS = { up: b.parent, dirs: (b.subdirs || []).map(d => d.path),
+                   cogs: (b.cogs || []).map(c => c.path) };
+  const dirs = (b.subdirs || []).map((d, i) =>
+    `<span class="direntry" onclick="openBrowser(BROWSE_PATHS.dirs[${i}])">
+       ${d.is_cog ? "⚙ " : "📁 "}${esc(d.name)}</span>`).join("");
+  const cogs = (b.cogs || []).map((c, i) => `<div class="cogrow">
+      <span class="cid">${esc(c.id || c.name)}</span>
+      <span class="k">${esc(c.kind || "")}${c.version ? " · v" + esc(c.version) : ""}</span>
+      <span class="sum">${esc(c.summary || c.error || "")}</span>
+      <button onclick="pickCog(BROWSE_PATHS.cogs[${i}])">Open</button>
+    </div>`).join("");
+  el.innerHTML = `<div class="box">
+    <div style="display:flex;align-items:center;gap:10px">
+      <b>Open a Cog</b><span style="flex:1"></span>
+      <button class="ghost" onclick="closeBrowser()">Close</button></div>
+    <div class="dirline">${esc(b.dir)}</div>
+    <div>${b.parent ? `<span class="direntry" onclick="openBrowser(BROWSE_PATHS.up)">⬑ up</span>` : ""}
+      ${dirs || `<span class="note">no subfolders</span>`}</div>
+    <div class="note" style="margin-top:12px">Cogs found here${b.truncated ? " (search truncated — go deeper by folder)" : ""}:</div>
+    ${cogs || `<div class="note" style="padding:6px 0">none within 3 levels — navigate with the folders above</div>`}
+  </div>`;
+}
+
+function closeBrowser() {
+  const el = $("#browser");
+  el.style.display = "none"; el.className = ""; el.innerHTML = "";
+}
+
+function pickCog(path) {
+  closeBrowser();
+  $("#path").value = path;
+  load();
 }
 
 async function load() {

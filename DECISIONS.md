@@ -172,6 +172,24 @@ workbench's opinion. That's exactly the kind of knowledge Collab's invocation
 environment will need to own — another concrete input for the meeting: should
 a Cog declare its own bring-up order, or is that always the environment's?
 
+### Also in the ease-of-use bucket: opening Cogs without typing paths
+
+Typing an absolute path into a box is the same adoption killer as knowing the
+start order. The **Browse…** dialog lists directories and runs a bounded scan
+(3 levels, hidden/heavy dirs skipped, Cogs are leaves) for `cog.yaml`
+packages, so opening a Cog is: Browse → click it.
+
+This does NOT reverse §1's rejection of server-side file browsing. That
+rejection was about pulling file *content* into invoke payloads — content
+selection stays user-mediated through the browser's own picker. The open
+dialog returns directory *metadata* (names + cog.yaml headers), which is the
+same authority `/api/package?path=` already had. *Tradeoff:* the loopback
+server now enumerates directory names on request; accepted for a loopback
+dev tool. The real fix at product level is an installed-Cog index (the Nebi
+desktop surface Trent floated) — this dialog is the minimal stand-in that
+proves what it needs: package discovery wants to be a service the invocation
+environment provides, not knowledge in the user's head.
+
 ## 7. What stayed in cog-client v0
 
 The inspector, affordance derivation, generic envelope interpretation, and

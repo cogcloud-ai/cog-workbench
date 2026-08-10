@@ -32,6 +32,9 @@ pixi run serve -- --path ../cog-forge/cog-ci-failure-analyst
 # open http://127.0.0.1:8071
 ```
 
+(Or skip the `--path` flag entirely: **Browse…** next to the path box scans
+nearby folders for Cog packages and opens them with a click.)
+
 Then, in the UI: **Operations → ⚡ Bring up the stack** — one button that
 starts the dependency, waits for it, resolves, and (re)starts the service in
 the right order, narrating as it goes. (The individual Start/Run/Stop buttons
@@ -42,7 +45,7 @@ unchanged from cog-client.
 
 Loopback only, no auth, and the server will only run tasks derived from the
 package's own declarations — never a free-form command. `pixi run test` runs
-the 33-test model-free suite. The server itself needs only Python + PyYAML —
+the 35-test model-free suite. The server itself needs only Python + PyYAML —
 pixi.toml parsing degrades to an honest built-in fallback on interpreters
 older than 3.11 (`src/toml_compat.py`).
 

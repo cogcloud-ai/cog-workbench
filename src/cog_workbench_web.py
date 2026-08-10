@@ -98,6 +98,12 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/op/logs":
                 r = PM.logs(q.get("key", ""), tail=int(q.get("tail", "200")))
                 return self._send(200 if r else 404, r or {"error": "unknown process"})
+            if route == "/api/browse":
+                d = q.get("dir")
+                if not d:
+                    d = (str(Path(DEFAULT_PATH).expanduser().resolve().parent)
+                         if DEFAULT_PATH else str(Path.cwd().parent))
+                return self._send(200, cog_package.browse(d))
             if route == "/api/procs":
                 out = {"procs": PM.list()}
                 if q.get("path"):

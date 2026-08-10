@@ -127,6 +127,43 @@ class TestInputSchema(unittest.TestCase):
         self.assertIn("gap", s)
 
 
+class TestBrowse(unittest.TestCase):
+    """The open dialog's backend: directory metadata + a bounded Cog scan."""
+
+    def _tree(self, tmp):
+        root = Path(tmp)
+        (root / "a").mkdir()
+        (root / "a" / "cog.yaml").write_text(yaml.safe_dump(
+            {"id": "openteams/cog-a", "kind": "context", "version": "0.1.0",
+             "summary": "the a cog"}))
+        (root / "b" / "deep").mkdir(parents=True)
+        (root / "b" / "deep" / "cog.yaml").write_text("id: openteams/cog-b\n")
+        (root / ".hidden").mkdir()
+        (root / ".hidden" / "cog.yaml").write_text("id: nope\n")
+        (root / "_to_delete").mkdir()
+        (root / "plain").mkdir()
+        return root
+
+    def test_scan_finds_cogs_and_skips_hidden(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            b = cog_package.browse(self._tree(tmp))
+        ids = {c.get("id") for c in b["cogs"]}
+        self.assertEqual(ids, {"openteams/cog-a", "openteams/cog-b"})
+        names = {d["name"]: d["is_cog"] for d in b["subdirs"]}
+        self.assertEqual(names, {"a": True, "b": False, "plain": False})
+        self.assertIsNotNone(b["parent"])
+
+    def test_cog_is_a_leaf_and_bad_dir_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._tree(tmp)
+            (root / "a" / "nested").mkdir()
+            (root / "a" / "nested" / "cog.yaml").write_text("id: inner\n")
+            b = cog_package.browse(root)
+            self.assertNotIn("inner", {c.get("id") for c in b["cogs"]})
+            with self.assertRaises(cog_package.PackageError):
+                cog_package.browse(root / "does-not-exist")
+
+
 class TestBindingStaleness(unittest.TestCase):
     """A service reads its binding record once at start; the workbench compares
     model.json's mtime with the process's started_ts to flag stale services."""

@@ -281,6 +281,58 @@ def operations(pkg):
     return ops
 
 
+SKIP_DIRS = {".git", ".pixi", "node_modules", "__pycache__", ".venv", "venv",
+             "_to_delete", "_xfer2", ".cache", "var", "overlays"}
+
+
+def browse(path, scan_depth=3, max_visits=2000):
+    """Directory listing + a bounded scan for Cog packages, for the open
+    dialog. Read-only METADATA only — directory names and cog.yaml headers,
+    never file contents. (The §1 rejection of server-side file browsing was
+    about pulling file CONTENT into invoke payloads; finding packages to open
+    is the same authority /api/package?path= already has.)"""
+    root = Path(path or ".").expanduser().resolve()
+    if not root.is_dir():
+        raise PackageError(f"{root} is not a directory")
+    try:
+        children = sorted(p for p in root.iterdir() if p.is_dir())
+    except OSError as e:
+        raise PackageError(f"cannot list {root}: {e}")
+    subdirs = [{"name": p.name, "path": str(p),
+                "is_cog": (p / "cog.yaml").exists()}
+               for p in children
+               if not p.name.startswith(".") and p.name not in SKIP_DIRS]
+
+    cogs, visits, queue = [], 0, [(root, 0)]
+    while queue and visits < max_visits:
+        d, depth = queue.pop(0)
+        visits += 1
+        cy = d / "cog.yaml"
+        if cy.exists():
+            entry = {"path": str(d), "name": d.name}
+            try:
+                m = yaml.safe_load(cy.read_text()) or {}
+                entry.update({"id": m.get("id"), "kind": m.get("kind"),
+                              "version": m.get("version"),
+                              "summary": (m.get("summary") or "").strip()})
+            except Exception:
+                entry["error"] = "cog.yaml unreadable"
+            cogs.append(entry)
+            continue                      # a Cog is a leaf; don't descend
+        if depth >= scan_depth:
+            continue
+        try:
+            queue.extend((p, depth + 1) for p in sorted(d.iterdir())
+                         if p.is_dir() and not p.is_symlink()
+                         and not p.name.startswith(".")
+                         and p.name not in SKIP_DIRS)
+        except OSError:
+            pass
+    return {"dir": str(root),
+            "parent": str(root.parent) if root.parent != root else None,
+            "subdirs": subdirs, "cogs": cogs, "truncated": bool(queue)}
+
+
 def binding_mtime(path):
     """mtime of the installation-state record (model.json), or None.
 
