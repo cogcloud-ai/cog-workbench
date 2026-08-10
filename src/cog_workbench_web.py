@@ -99,7 +99,10 @@ class Handler(BaseHTTPRequestHandler):
                 r = PM.logs(q.get("key", ""), tail=int(q.get("tail", "200")))
                 return self._send(200 if r else 404, r or {"error": "unknown process"})
             if route == "/api/procs":
-                return self._send(200, {"procs": PM.list()})
+                out = {"procs": PM.list()}
+                if q.get("path"):
+                    out["binding_mtime"] = cog_package.binding_mtime(q["path"])
+                return self._send(200, out)
             if route == "/api/activity":
                 path = VAR / "activity.jsonl"
                 lines = []

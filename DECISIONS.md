@@ -132,7 +132,47 @@ a record schema the spec hasn't ratified. The full per-run binding record
 already exists inside each invocation result; the journal indexes, it doesn't
 duplicate.
 
-## 6. What stayed in cog-client v0
+## 6. Order of operations is the tool's job (added after first real use)
+
+**The failure that motivated this:** first real run on a user's machine
+produced `identity mismatch — requested 'local'`. Cause: web-api was started
+before `resolve`, so the service loaded the built-in default binding at
+process start and never saw the record resolve later wrote. Everything worked
+as designed — and the design still put a sequencing burden on the human. If
+Cogs demand that users know start-order and restart semantics, they won't get
+used; the whole point is to make running them easy.
+
+**Decision, two layers:**
+
+1. *Staleness is detected, not remembered.* Every process snapshot carries its
+   `started_ts`; the server reports `model.json`'s mtime alongside. A running
+   service of the loaded Cog whose binding record is newer than its start gets
+   an inline warning and a **Restart** button. No new state — just comparing
+   two timestamps that already existed.
+2. *The sequence itself is a button.* **"Bring up the stack"** runs the whole
+   order: start each declared dependency → wait for ITS health surfaces →
+   run `resolve` → wait for exit 0 → start the Cog's service (restarting it
+   if it predates the fresh binding) → wait for ITS health. Progress is
+   narrated inline; any failure stops the sequence and points at the logs.
+
+**Alternatives considered:** (a) hot-reload the binding record per request in
+the Cogs themselves — the correct long-term fix, but the Cogs are frozen, and
+read-once-at-start is also a defensible §6.7 stance (a running service's
+binding should not drift silently mid-flight; an explicit restart is an
+auditable event). (b) Server-side orchestration endpoint — rejected for now:
+client-side sequencing reuses the existing (guardrailed) endpoints unchanged,
+keeps progress visible, and adds zero new server authority. (c) Auto-running
+resolve at web-api start — too magical: resolve writes installation state,
+and writing state as a side effect of starting a viewer crosses a line the
+spec should decide, not this tool.
+
+**Tradeoff:** the bring-up sequence hard-codes one topology (deps → resolve →
+serve). It is derived from declarations, but the *ordering rule* is the
+workbench's opinion. That's exactly the kind of knowledge Collab's invocation
+environment will need to own — another concrete input for the meeting: should
+a Cog declare its own bring-up order, or is that always the environment's?
+
+## 7. What stayed in cog-client v0
 
 The inspector, affordance derivation, generic envelope interpretation, and
 health probes came across unchanged (v0 remains the demo of "today's

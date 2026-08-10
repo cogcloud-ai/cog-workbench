@@ -281,6 +281,20 @@ def operations(pkg):
     return ops
 
 
+def binding_mtime(path):
+    """mtime of the installation-state record (model.json), or None.
+
+    A running service reads its binding ONCE at process start; comparing this
+    against a process's started_ts is how the workbench detects "the binding
+    changed under a running service — restart it to pick the change up."
+    """
+    p = Path(path).expanduser().resolve() / "model.json"
+    try:
+        return round(p.stat().st_mtime, 3)
+    except OSError:
+        return None
+
+
 def card(pkg):
     """The inspector card: everything a surface needs to render a Cog legibly."""
     m = pkg["manifest"]

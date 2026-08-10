@@ -32,14 +32,17 @@ pixi run serve -- --path ../cog-forge/cog-ci-failure-analyst
 # open http://127.0.0.1:8071
 ```
 
-Then, in the UI: **Operations → Start dependency (cog-qwen3b) → Run resolve →
-Start web-api**, wait for the dots to go green, and use **Run** (pick a log
+Then, in the UI: **Operations → ⚡ Bring up the stack** — one button that
+starts the dependency, waits for it, resolves, and (re)starts the service in
+the right order, narrating as it goes. (The individual Start/Run/Stop buttons
+are still there, and a service running on a binding older than `model.json`
+gets an inline warning and a Restart button.) Then use **Run** (pick a log
 file, pick the workflow) or **Chat**. CLI (`show`/`ask`/`chat`/`health`) is
 unchanged from cog-client.
 
 Loopback only, no auth, and the server will only run tasks derived from the
 package's own declarations — never a free-form command. `pixi run test` runs
-the 31-test model-free suite. The server itself needs only Python + PyYAML —
+the 33-test model-free suite. The server itself needs only Python + PyYAML —
 pixi.toml parsing degrades to an honest built-in fallback on interpreters
 older than 3.11 (`src/toml_compat.py`).
 

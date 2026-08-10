@@ -75,6 +75,7 @@ class Proc:
         return {"key": self.key, "root": self.root, "task": self.task,
                 "tier": self.tier, "pid": self.popen.pid,
                 "running": rc is None, "returncode": rc,
+                "started_ts": round(self.started_at, 3),
                 "uptime_s": round(time.time() - self.started_at, 1),
                 "line_count": self.line_count}
 

@@ -73,6 +73,7 @@
   .op:last-child { border-bottom: 0; }
   .op .name { font-family: var(--mono); font-size: 12.5px; min-width: 220px; }
   .op .tier { font-size: 11px; color: var(--muted); }
+  .stale { font-size: 11px; color: #b45309; margin-left: 6px; }
   .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
                 background: #c6ccd9; }
   .status-dot.up { background: var(--ok); } .status-dot.down { background: var(--bad); }
@@ -456,9 +457,14 @@ async function sendChat() {
 
 async function renderOps() {
   const ops = CARD.operations || [];
+  const hasStack = ops.some(o => o.mode === "service");
   $("#panel").innerHTML = `
     <div class="info">buttons run only tasks this Cog <b>declares</b> — its interfaces,
       its binding machinery, and its declared dependencies. Nothing free-form.</div>
+    ${hasStack ? `<div class="row" style="margin:10px 0">
+      <button id="bringup" onclick="bringUp()">⚡ Bring up the stack</button>
+      <span class="note" id="stackline">one button: start dependencies → wait →
+        resolve → (re)start the service</span></div>` : ""}
     <div id="oplist">${ops.map((o, i) => opRow(o, i)).join("")}</div>
     <div id="oplogs"></div>`;
   await refreshOps();
@@ -471,19 +477,22 @@ function opRow(o, i) {
     <span class="name">${esc(o.label)}${o.dependency ? " ⭱" : ""}</span>
     ${o.mode === "service"
       ? `<button id="btn-${i}" onclick="startOp(${i})">Start</button>
-         <button class="danger" id="stop-${i}" onclick="stopOp(${i})" disabled>Stop</button>`
+         <button class="danger" id="stop-${i}" onclick="stopOp(${i})" disabled>Stop</button>
+         <button id="restart-${i}" style="display:none" onclick="restartOp(${i})">Restart</button>`
       : `<input type="text" id="args-${i}" placeholder="${esc(o.args_hint || "args…")}"
            style="width:230px">
          <button id="btn-${i}" onclick="startOp(${i})">Run</button>`}
     <button class="ghost" onclick="viewLogs(${i})">logs</button>
     <span class="tier" id="tier-${i}"></span>
+    <span class="stale" id="stale-${i}"></span>
   </div>`;
 }
 
 function opKey(o) { return o.root + "::" + o.task; }
 
 async function refreshOps() {
-  const r = await api("/api/procs");
+  const r = await api("/api/procs?path=" + encodeURIComponent(CARD.root));
+  const bm = r.body.binding_mtime;
   const procs = {};
   (r.body.procs || []).forEach(p => procs[p.key] = p);
   (CARD.operations || []).forEach((o, i) => {
@@ -494,6 +503,14 @@ async function refreshOps() {
     if (stop) stop.disabled = !(p && p.running);
     if (tier && p) tier.textContent =
       (p.running ? `pid ${p.pid} · up ${p.uptime_s}s · ` : `exit ${p.returncode} · `) + p.tier;
+    // The binding record is read once at process start: a service of THIS Cog
+    // that predates a newer model.json is running on stale state.
+    const stale = !!(p && p.running && !o.dependency && o.mode === "service"
+                     && bm && bm > p.started_ts);
+    const st = $("#stale-" + i), rb = $("#restart-" + i);
+    if (st) st.textContent = stale
+      ? "binding changed since this started — restart to pick it up" : "";
+    if (rb) rb.style.display = stale ? "" : "none";
   });
   if (ACTIVE_LOG_KEY) {
     const lr = await api("/api/op/logs?key=" + encodeURIComponent(ACTIVE_LOG_KEY) + "&tail=120");
@@ -519,6 +536,107 @@ async function startOp(i) {
 async function stopOp(i) {
   await post("/api/op/stop", { key: opKey(CARD.operations[i]) });
   refreshOps();
+}
+
+async function restartOp(i) {
+  await post("/api/op/stop", { key: opKey(CARD.operations[i]) });  // blocks until dead
+  await startOp(i);
+}
+
+/* ---------------- Bring up: the order of operations, as a button ----------- */
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+async function waitHealthy(path, timeoutMs, iface) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const r = await api("/api/health?path=" + encodeURIComponent(path));
+    const res = (r.body.results || []).filter(x => !iface || x.interface === iface);
+    if (res.length && res.every(x => x.ok)) return true;
+    await sleep(2000);
+  }
+  return false;
+}
+
+async function waitExit(key, timeoutMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < timeoutMs) {
+    const r = await api("/api/op/logs?key=" + encodeURIComponent(key) + "&tail=1");
+    if (r.status === 200 && r.body.returncode !== null) return r.body.returncode;
+    await sleep(700);
+  }
+  return null;
+}
+
+let STACK_BUSY = false;
+
+async function bringUp() {
+  if (STACK_BUSY) return;
+  STACK_BUSY = true;
+  const btn = $("#bringup"); if (btn) btn.disabled = true;
+  const say = (t) => { const el = $("#stackline"); if (el) el.textContent = t; };
+  try {
+    const ops = CARD.operations || [];
+    const deps = ops.filter(o => o.dependency && o.mode === "service");
+    const resolveOp = ops.find(o => !o.dependency && o.mode === "run" && o.task === "resolve");
+    const svc = ops.find(o => !o.dependency && o.mode === "service");
+
+    for (const d of deps) {
+      // If the dependency's endpoint already answers (started here earlier, or
+      // outside the workbench entirely), don't insist on starting it again.
+      if (await waitHealthy(d.root, 3000)) { say(`${d.label}: already serving`); continue; }
+      say(`starting ${d.label}…`);
+      const r = await post("/api/op/start", { path: CARD.root, root: d.root, task: d.task, args: "" });
+      if (r.body.error && !/already running/.test(r.body.error)) throw new Error(r.body.error);
+      say(`waiting for ${d.label} to answer (model load can take a minute)…`);
+      if (!await waitHealthy(d.root, 180000))
+        throw new Error(`${d.label} did not become healthy — check its logs`);
+    }
+
+    if (resolveOp) {
+      say("resolving (writing the binding record)…");
+      const r = await post("/api/op/start", { path: CARD.root, root: resolveOp.root,
+                                              task: resolveOp.task, args: "" });
+      if (r.body.error) throw new Error(r.body.error);
+      const rc = await waitExit(resolveOp.root + "::" + resolveOp.task, 60000);
+      if (rc !== 0) {
+        ACTIVE_LOG_KEY = resolveOp.root + "::" + resolveOp.task;
+        throw new Error(`resolve exited ${rc === null ? "(timeout)" : rc} — see its logs`);
+      }
+    }
+
+    if (svc) {
+      const key = opKey(svc);
+      const st = await api("/api/procs?path=" + encodeURIComponent(CARD.root));
+      const p = (st.body.procs || []).find(x => x.key === key);
+      const stale = !!(p && p.running && st.body.binding_mtime
+                       && st.body.binding_mtime > p.started_ts);
+      if (stale) { say(`restarting ${svc.label} to pick up the fresh binding…`);
+                   await post("/api/op/stop", { key }); }
+      if (!p || !p.running || stale) {
+        const r = await post("/api/op/start", { path: CARD.root, root: svc.root,
+                                                task: svc.task, args: "" });
+        if (r.body.error && !/already running/.test(r.body.error)) throw new Error(r.body.error);
+      }
+      say(`waiting for ${svc.label}…`);
+      if (!await waitHealthy(CARD.root, 60000, svc.name))
+        throw new Error(`${svc.label} did not answer its health probe — check its logs`);
+    }
+
+    say("✓ stack is up — Run and Chat are live.");
+    // refresh the left-hand cards (the Binding panel just changed), then
+    // come back to this tab.
+    const r = await api("/api/package?path=" + encodeURIComponent(CARD.root));
+    if (!r.body.error) { CARD = r.body; render(); showTab("Operations");
+                         const el = $("#stackline");
+                         if (el) el.textContent = "✓ stack is up — Run and Chat are live."; }
+  } catch (e) {
+    say("stopped: " + e.message);
+  } finally {
+    STACK_BUSY = false;
+    const b = $("#bringup"); if (b) b.disabled = false;
+    refreshOps();
+  }
 }
 
 function viewLogs(i) {

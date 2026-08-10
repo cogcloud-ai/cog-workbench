@@ -127,6 +127,28 @@ class TestInputSchema(unittest.TestCase):
         self.assertIn("gap", s)
 
 
+class TestBindingStaleness(unittest.TestCase):
+    """A service reads its binding record once at start; the workbench compares
+    model.json's mtime with the process's started_ts to flag stale services."""
+
+    def test_no_record_means_no_mtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(cog_package.binding_mtime(write_pkg(tmp)))
+
+    def test_record_mtime_reported_and_orders_against_start(self):
+        pm = proc_manager.ProcessManager()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_pkg(tmp)
+            snap = pm.start(root, "serve")
+            self.assertIn("started_ts", snap)
+            time.sleep(0.05)
+            (root / "model.json").write_text("{}")   # resolve ran AFTER start
+            mtime = cog_package.binding_mtime(root)
+            self.assertIsNotNone(mtime)
+            self.assertGreater(mtime, snap["started_ts"])   # -> stale
+            pm.stop(snap["key"])
+
+
 class TestTomlCompat(unittest.TestCase):
     """The fallback parser (no tomllib before Python 3.11) must read the exact
     subset our pixi.toml files use, and refuse [tasks] shapes it can't."""
