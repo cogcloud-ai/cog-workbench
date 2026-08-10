@@ -60,6 +60,15 @@ def resolve_command(root, task):
     return str(cmd), True, "fallback (task string on system python)"
 
 
+def _child_env():
+    """Environment for child Cog processes: the workbench may itself be running
+    under `pixi run serve`, which exports PIXI_* activation variables. Passing
+    those through makes pixi warn about competing manifests (and is the same
+    cross-contamination class as cog-demo's activation-env finding), so they
+    are scrubbed — each Cog's pixi resolves its OWN manifest from cwd."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("PIXI_")}
+
+
 def run_capture(root, task, argv, timeout=90):
     """Run a declared task ONE-SHOT with extra argv tokens and capture output.
 
@@ -76,7 +85,7 @@ def run_capture(root, task, argv, timeout=90):
     else:
         cmd = cmd + ["--"] + argv
     try:
-        r = subprocess.run(cmd, shell=shell, cwd=str(root),
+        r = subprocess.run(cmd, shell=shell, cwd=str(root), env=_child_env(),
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                            text=True, timeout=timeout)
         out = r.stdout or ""
@@ -168,7 +177,7 @@ class ProcessManager:
                     cmd = cmd + ["--"] + str(extra_args).split()
 
             popen = subprocess.Popen(
-                cmd, shell=shell, cwd=str(root),
+                cmd, shell=shell, cwd=str(root), env=_child_env(),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, start_new_session=True)
             proc = Proc(key, root, task, tier, popen)

@@ -387,8 +387,13 @@ async function runDerive(j) {
   const r = await post("/api/derive", { path: CARD.root, id: d.id, values });
   if (!r.body.ok) {
     busy.textContent = "";
+    const hint = /no commits in range/.test(r.body.log || "")
+      ? `<div class="info">the “older ref” is the <b>exclusive start</b> of the range —
+         it must point BEHIND the newer ref. Picking HEAD (or the branch you're on)
+         as the older ref makes the range empty. Choose an earlier tag/branch,
+         or use “last N commits” instead.</div>` : "";
     $("#result").innerHTML = `<div class="gap">${esc(r.body.error || "derivation failed")}</div>
-      ${r.body.log ? `<pre>${esc(r.body.log)}</pre>` : ""}`;
+      ${hint}${r.body.log ? `<pre>${esc(r.body.log)}</pre>` : ""}`;
     return;
   }
   fillForm(r.body.filled, "(from " + d.task + ")");

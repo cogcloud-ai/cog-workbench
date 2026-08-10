@@ -211,6 +211,20 @@ class TestDeclaredDerivation(unittest.TestCase):
         got = json.loads(out.strip().splitlines()[-1])
         self.assertEqual(got, ["--x", "a b; rm -rf /", "-o", "/tmp/f"])
 
+    def test_child_env_scrubs_pixi_activation(self):
+        import os
+        os.environ["PIXI_PROJECT_MANIFEST"] = "/tmp/fake/pixi.toml"
+        try:
+            pixi = PIXI + 'showenv = "python3 -c \'import os;' \
+                   ' print(os.environ.get(\\"PIXI_PROJECT_MANIFEST\\", \\"CLEAN\\"))\'"\n'
+            with tempfile.TemporaryDirectory() as tmp:
+                root = write_pkg(tmp, pixi=pixi)
+                rc, out, _ = proc_manager.run_capture(root, "showenv", [])
+            self.assertEqual(rc, 0)
+            self.assertIn("CLEAN", out)
+        finally:
+            del os.environ["PIXI_PROJECT_MANIFEST"]
+
     def test_git_refs_capability(self):
         import subprocess
         with tempfile.TemporaryDirectory() as tmp:

@@ -51,7 +51,7 @@ unchanged from cog-client.
 
 Loopback only, no auth, and the server will only run tasks derived from the
 package's own declarations — never a free-form command. `pixi run test` runs
-the 40-test model-free suite. The server itself needs only Python + PyYAML —
+the 41-test model-free suite. The server itself needs only Python + PyYAML —
 pixi.toml parsing degrades to an honest built-in fallback on interpreters
 older than 3.11 (`src/toml_compat.py`).
 
