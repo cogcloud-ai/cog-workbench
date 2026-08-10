@@ -108,7 +108,7 @@ def git_refs(repo):
     try:
         r = subprocess.run(
             base + ["for-each-ref", "--sort=-creatordate",
-                    "--format=%(refname:short)\t%(refname)\t%(creatordate:short)",
+                    "--format=%(refname:short)\t%(refname)\t%(creatordate:iso-strict)",
                     "refs/heads", "refs/tags"],
             capture_output=True, text=True, timeout=15)
         if r.returncode != 0:
@@ -124,7 +124,10 @@ def git_refs(repo):
         h = subprocess.run(base + ["rev-parse", "--abbrev-ref", "HEAD"],
                            capture_output=True, text=True, timeout=15)
         head = h.stdout.strip() if h.returncode == 0 else None
-        return {"refs": refs, "head": head}
+        hd = subprocess.run(base + ["log", "-1", "--format=%cI", "HEAD"],
+                            capture_output=True, text=True, timeout=15)
+        head_date = hd.stdout.strip() if hd.returncode == 0 else None
+        return {"refs": refs, "head": head, "head_date": head_date}
     except (subprocess.TimeoutExpired, OSError) as e:
         return {"error": str(e)[:300]}
 

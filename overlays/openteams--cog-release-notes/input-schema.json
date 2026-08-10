@@ -13,8 +13,9 @@
         "task": "bundle",
         "inputs": {
           "repo": { "type": "git-repo", "required": true, "label": "repository (local clone)" },
-          "from": { "type": "git-ref", "repo_from": "repo", "label": "older ref (exclusive)" },
-          "to": { "type": "git-ref", "repo_from": "repo", "default": "HEAD", "label": "newer ref" },
+          "from": { "type": "git-ref", "repo_from": "repo", "prefer": "latest-tag",
+                    "label": "notes cover everything AFTER…" },
+          "to": { "type": "git-ref", "repo_from": "repo", "default": "HEAD", "label": "…up to" },
           "last": { "type": "integer", "label": "…or just the last N commits" },
           "audience": { "type": "enum", "values": ["users", "developers", "maintainers"],
                         "default": "users" }

@@ -227,6 +227,17 @@ CORS/cookie scoping, not a bug to fix). Local clones need no auth; remote
 private repos are a client capability (`gh` CLI, `api_key_env`-style
 references) — the extension never carries credentials.
 
+**Assumption-proofing (added after second real use):** the first real user
+picked the newest ref as the range start without reading the "(exclusive)"
+label — because nobody reads labels, and a design that needs them read is
+the bug. Three responses, in order of importance: *smart defaults* (a
+`prefer: "latest-tag"` hint in the vocabulary — release notes usually start
+at the last release, so the common case is now zero picks); *a reversed-range
+guard* (both ends carry creatordates from the ref listing; if "from" is
+newer than "to" the client swaps them and says so, rather than failing);
+and only then *better labels* ("notes cover everything AFTER… / …up to").
+Labels are the last line of defense, not the first.
+
 **Tradeoff:** the argv template puts command-line syntax into a data file —
 mild duplication of the task's argparse surface, accepted because it is what
 makes execution *declarable* rather than free-form. cog-smith can draft

@@ -358,6 +358,8 @@ function derivePanels(schema) {
   }).join("");
 }
 
+let REF_DATES = {};   // ref name -> creatordate, for the reversed-range guard
+
 async function deriveRepoChanged(j, name) {
   const repo = $(`#dv-${j}-${name}`).value.trim();
   if (!repo) return;
@@ -367,11 +369,29 @@ async function deriveRepoChanged(j, name) {
     selects.forEach(s => { s.innerHTML = `<option value="">(${esc(r.body.error)})</option>`; });
     return;
   }
+  REF_DATES = {};
+  r.body.refs.forEach(x => { REF_DATES[x.name] = x.date; });
+  if (r.body.head_date) REF_DATES["HEAD"] = r.body.head_date;
   const opts = `<option value="">(none)</option>` +
     (r.body.head ? `<option value="HEAD">HEAD (${esc(r.body.head)})</option>` : "") +
     r.body.refs.map(x =>
-      `<option value="${esc(x.name)}">${esc(x.name)} · ${esc(x.kind)} ${esc(x.date)}</option>`).join("");
-  selects.forEach(s => { s.innerHTML = opts; s.disabled = false; });
+      `<option value="${esc(x.name)}">${esc(x.name)} · ${esc(x.kind)} ${esc((x.date || "").slice(0, 10))}</option>`).join("");
+  const d = deriveSpecs((CARD.input_schema || {}).schema)[j] || {};
+  selects.forEach(s => {
+    s.innerHTML = opts;
+    s.disabled = false;
+    // Smart defaults — the common case should need zero picks:
+    // prefer:"latest-tag" -> the newest tag (a release-notes range usually
+    // starts at the last release); default:"HEAD" -> HEAD.
+    const field = (s.id.match(/^dv-\d+-(.+)$/) || [])[1];
+    const spec = (d.inputs || {})[field] || {};
+    if (spec.prefer === "latest-tag") {
+      const t = r.body.refs.find(x => x.kind === "tag");   // sorted newest-first
+      if (t) s.value = t.name;
+    } else if (spec.default === "HEAD" && r.body.head) {
+      s.value = "HEAD";
+    }
+  });
 }
 
 async function runDerive(j) {
@@ -383,6 +403,21 @@ async function runDerive(j) {
     if (el && el.value.trim() !== "") values[name] = el.value.trim();
   }
   const busy = $(`#dv-${j}-busy`);
+  // Reversed-range guard: if both ends are dated refs and "from" is newer,
+  // the user almost certainly meant them the other way — swap and say so.
+  const gitRefFields = Object.entries(d.inputs || {})
+    .filter(([, s]) => s.type === "git-ref").map(([n]) => n);
+  if (gitRefFields.length === 2) {
+    const [fa, fb] = gitRefFields;
+    const da = REF_DATES[values[fa]], db = REF_DATES[values[fb]];
+    if (da && db && da > db) {
+      [values[fa], values[fb]] = [values[fb], values[fa]];
+      const ea = $(`#dv-${j}-${fa}`), eb = $(`#dv-${j}-${fb}`);
+      if (ea) ea.value = values[fa];
+      if (eb) eb.value = values[fb];
+      busy.textContent = `(swapped — ${values[fb]} is the newer ref) `;
+    }
+  }
   busy.textContent = `running ${d.task}…`;
   const r = await post("/api/derive", { path: CARD.root, id: d.id, values });
   if (!r.body.ok) {
