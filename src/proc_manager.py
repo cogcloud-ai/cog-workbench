@@ -17,6 +17,7 @@ an INVOCATION ENVIRONMENT holds exactly that authority (it is the §6.6
 """
 import os
 import shutil
+import shlex
 import signal
 import subprocess
 import threading
@@ -57,6 +58,66 @@ def resolve_command(root, task):
     if isinstance(cmd, dict):
         cmd = cmd.get("cmd", "")
     return str(cmd), True, "fallback (task string on system python)"
+
+
+def run_capture(root, task, argv, timeout=90):
+    """Run a declared task ONE-SHOT with extra argv tokens and capture output.
+
+    Used by declared derivation (x-cog-param): `argv` items are DATA — they
+    are passed as tokens (pixi tier) or shell-quoted (fallback tier), never
+    interpolated as shell text. The task itself still goes through
+    resolve_command, so only tasks declared in the Cog's pixi.toml can run.
+    Returns (returncode, tail_of_output, tier).
+    """
+    cmd, shell, tier = resolve_command(root, task)
+    argv = [str(a) for a in (argv or [])]
+    if shell:
+        cmd = cmd + " " + " ".join(shlex.quote(a) for a in argv)
+    else:
+        cmd = cmd + ["--"] + argv
+    try:
+        r = subprocess.run(cmd, shell=shell, cwd=str(root),
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True, timeout=timeout)
+        out = r.stdout or ""
+        return r.returncode, out[-4000:], tier
+    except subprocess.TimeoutExpired:
+        return None, f"[timed out after {timeout}s]", tier
+
+
+GIT_REFS_MAX = 400
+
+
+def git_refs(repo):
+    """Client capability `git-ref`: enumerate refs of a LOCAL repo, read-only,
+    one fixed argv — never a shell, never a Cog-supplied command. Returns
+    {"refs": [{name, kind, date}], "head": str|None} or {"error": ...}."""
+    repo = Path(repo).expanduser().resolve()
+    if not (repo / ".git").exists():
+        return {"error": f"{repo} is not a git repository"}
+    base = ["git", "-C", str(repo)]
+    try:
+        r = subprocess.run(
+            base + ["for-each-ref", "--sort=-creatordate",
+                    "--format=%(refname:short)\t%(refname)\t%(creatordate:short)",
+                    "refs/heads", "refs/tags"],
+            capture_output=True, text=True, timeout=15)
+        if r.returncode != 0:
+            return {"error": (r.stderr or "git for-each-ref failed").strip()[:300]}
+        refs = []
+        for line in r.stdout.splitlines()[:GIT_REFS_MAX]:
+            parts = line.split("\t")
+            if parts and parts[0]:
+                refs.append({"name": parts[0],
+                             "kind": ("tag" if len(parts) > 1
+                                      and parts[1].startswith("refs/tags/") else "branch"),
+                             "date": parts[2] if len(parts) > 2 else ""})
+        h = subprocess.run(base + ["rev-parse", "--abbrev-ref", "HEAD"],
+                           capture_output=True, text=True, timeout=15)
+        head = h.stdout.strip() if h.returncode == 0 else None
+        return {"refs": refs, "head": head}
+    except (subprocess.TimeoutExpired, OSError) as e:
+        return {"error": str(e)[:300]}
 
 
 class Proc:

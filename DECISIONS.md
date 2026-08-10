@@ -190,7 +190,50 @@ desktop surface Trent floated) — this dialog is the minimal stand-in that
 proves what it needs: package discovery wants to be a service the invocation
 environment provides, not knowledge in the user's head.
 
-## 7. What stayed in cog-client v0
+## 7. x-cog-param: parameter semantics + declared derivation (prototype)
+
+Full proposal in `output/cog-param-protocol.md` (drafted for the Monday
+meeting); this section records what runs here and the calls made.
+
+**The gap:** the schema says a value's *shape* (string), not what it *is*
+(a git ref of the repo named in another field). Generic clients therefore
+render exams: text boxes for refs the user must already know.
+
+**Decision:** a second namespaced layer inside the input schema —
+`x-cog-param` v1 — with (a) a CLOSED vocabulary of semantic types
+(`local-path`, `git-repo`, `git-ref` with `repo_from`, `github-repo`) and
+(b) **declared derivation**: a field (or the whole form, `fills: "$"`) can
+declare itself producible by one of the Cog's own tasks plus an argv
+template. The workbench maps types to capabilities it trusts: a repo picker
+(the Browse dialog in git mode), a ref dropdown (ONE fixed read-only
+`git for-each-ref` argv — a client capability, never a Cog-supplied
+command), and a Build button that runs the declared `bundle` task and fills
+the form from its JSON output.
+
+**Guardrails, same shape as runnable operations:** the derive id must come
+from the package's own (schema or overlay) declaration; the task must exist
+in its pixi.toml; user values are argv DATA (tokens on the pixi tier,
+shlex-quoted on the fallback tier); `{output}` is a server-chosen temp file;
+every derivation is journaled. Closed vocabulary is the line that holds:
+the moment a Cog can say "run this to populate my dropdown," free-form
+execution is back.
+
+**Degradation:** unknown vocabulary version → no panels; unknown semantic
+type → labeled text box; extension absent → exactly yesterday's form. That
+property is why this can be a Collab-side extension instead of core spec.
+
+**Auth stance:** browser GitHub cookies never reach a local client (correct
+CORS/cookie scoping, not a bug to fix). Local clones need no auth; remote
+private repos are a client capability (`gh` CLI, `api_key_env`-style
+references) — the extension never carries credentials.
+
+**Tradeoff:** the argv template puts command-line syntax into a data file —
+mild duplication of the task's argparse surface, accepted because it is what
+makes execution *declarable* rather than free-form. cog-smith can draft
+these blocks mechanically from `--help` output (nf-core's `schema build`
+precedent).
+
+## 8. What stayed in cog-client v0
 
 The inspector, affordance derivation, generic envelope interpretation, and
 health probes came across unchanged (v0 remains the demo of "today's

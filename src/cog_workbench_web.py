@@ -18,7 +18,10 @@ DECISIONS.md for the guardrails and tradeoffs.
 """
 import argparse
 import json
+import os
+import re
 import sys
+import tempfile
 import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -44,6 +47,46 @@ def journal(entry):
 
 
 PM = proc_manager.ProcessManager(journal=journal)
+
+_PLACEHOLDER = re.compile(r"^\{([a-z_]+)\}$")
+
+
+def _build_derive_argv(template, values):
+    """Expand a declared argv template. `--flag? {name}` pairs drop out when
+    the value is absent; `{name}` alone is positional; anything else is a
+    literal token from the Cog's own declaration. Returns (argv, output_path,
+    error). Values are stringified data tokens — no shell interpretation."""
+    fd, out_path = tempfile.mkstemp(suffix=".json", prefix="cog-derive-")
+    os.close(fd)
+    argv, i, tmpl = [], 0, [str(t) for t in template]
+    while i < len(tmpl):
+        tok = tmpl[i]
+        m = _PLACEHOLDER.match(tok)
+        if m:                                             # positional
+            name = m.group(1)
+            val = out_path if name == "output" else values.get(name)
+            if val in (None, ""):
+                return None, out_path, f"missing required value: {name}"
+            argv.append(str(val))
+            i += 1
+            continue
+        optional = tok.endswith("?")
+        flag = tok[:-1] if optional else tok
+        nxt = _PLACEHOLDER.match(tmpl[i + 1]) if i + 1 < len(tmpl) else None
+        if nxt:                                           # flag + value pair
+            name = nxt.group(1)
+            val = out_path if name == "output" else values.get(name)
+            if val in (None, ""):
+                if optional:
+                    i += 2
+                    continue
+                return None, out_path, f"missing required value: {name}"
+            argv.extend([flag, str(val)])
+            i += 2
+        else:                                             # literal token
+            argv.append(flag)
+            i += 1
+    return argv, out_path, None
 
 
 def _load(path):
@@ -98,6 +141,8 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/api/op/logs":
                 r = PM.logs(q.get("key", ""), tail=int(q.get("tail", "200")))
                 return self._send(200 if r else 404, r or {"error": "unknown process"})
+            if route == "/api/gitrefs":
+                return self._send(200, proc_manager.git_refs(q.get("repo", "")))
             if route == "/api/browse":
                 d = q.get("dir")
                 if not d:
@@ -180,6 +225,45 @@ class Handler(BaseHTTPRequestHandler):
 
             if route == "/api/op/stop":
                 return self._send(200, PM.stop(body.get("key", "")))
+
+            if route == "/api/derive":
+                # Declared derivation (x-cog-param): the derive id must come
+                # from THIS package's input schema, the task from its own
+                # pixi.toml, and user values are argv DATA — never shell text.
+                pkg = _load(body.get("path"))
+                dspec = next((d for d in cog_package.derivations(pkg)
+                              if d["id"] == body.get("id")), None)
+                if not dspec:
+                    return self._send(400, {"error": "that id is not a declared "
+                                                     "derivation of this Cog"})
+                argv, out_path, err = _build_derive_argv(
+                    dspec["argv"], body.get("values") or {})
+                if err:
+                    return self._send(400, {"error": err})
+                try:
+                    rc, tail, tier = proc_manager.run_capture(
+                        pkg["root"], dspec["task"], argv)
+                    journal({"event": "derive", "cog": pkg["name"],
+                             "derivation": dspec["id"], "task": dspec["task"],
+                             "returncode": rc})
+                    if rc != 0:
+                        return self._send(200, {"ok": False, "log": tail,
+                                                "error": f"{dspec['task']} exited "
+                                                         f"{'timeout' if rc is None else rc}"})
+                    try:
+                        filled = json.loads(Path(out_path).read_text())
+                    except (OSError, json.JSONDecodeError) as e:
+                        return self._send(200, {"ok": False, "log": tail,
+                                                "error": f"task succeeded but output "
+                                                         f"was not readable JSON: {e}"})
+                    return self._send(200, {"ok": True, "filled": filled,
+                                            "fills": dspec.get("fills", "$"),
+                                            "tier": tier, "log": tail})
+                finally:
+                    try:
+                        Path(out_path).unlink()
+                    except OSError:
+                        pass
 
             return self._send(404, {"error": "not-found"})
         except json.JSONDecodeError as e:

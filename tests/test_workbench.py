@@ -84,6 +84,8 @@ class TestOperations(unittest.TestCase):
         self.assertEqual(dep_ops[0]["mode"], "service")
         self.assertEqual(dep_ops[0]["task"], "serve")
         self.assertIn("test-model", dep_ops[0]["name"])
+        # alternatives grouping key for bring-up
+        self.assertEqual(dep_ops[0]["capability"], "model-endpoint/openai-compatible")
 
     def test_real_forge_cog_gets_full_chain(self):
         forge = ROOT.parent / "cog-forge" / "cog-release-notes"
@@ -162,6 +164,71 @@ class TestBrowse(unittest.TestCase):
             self.assertNotIn("inner", {c.get("id") for c in b["cogs"]})
             with self.assertRaises(cog_package.PackageError):
                 cog_package.browse(root / "does-not-exist")
+
+
+class TestDeclaredDerivation(unittest.TestCase):
+    """x-cog-param v1: semantics + declared derivation, guardrails intact."""
+
+    def test_overlay_declares_release_notes_derivation(self):
+        forge = ROOT.parent / "cog-forge" / "cog-release-notes"
+        if not (forge / "cog.yaml").exists():
+            self.skipTest("forge not present")
+        ds = cog_package.derivations(cog_package.load_package(forge))
+        self.assertEqual([d["id"] for d in ds], ["from-git"])
+        self.assertEqual(ds[0]["task"], "bundle")
+        self.assertEqual(ds[0]["inputs"]["from"]["repo_from"], "repo")
+
+    def test_unknown_version_degrades_to_empty(self):
+        schema = {"type": "object", "x-cog-param": {"v": 99, "derive": [
+            {"id": "x", "task": "bundle", "argv": []}]}, "properties": {}}
+        m = dict(MANIFEST)
+        m["context"] = {"input_schema": "context/input-schema.json"}
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = cog_package.load_package(write_pkg(tmp, m, input_schema=schema))
+            self.assertEqual(cog_package.derivations(pkg), [])
+
+    def test_argv_template_expansion(self):
+        import cog_workbench_web as web
+        argv, out, err = web._build_derive_argv(
+            ["--repo", "{repo}", "--from?", "{from}", "--last?", "{last}",
+             "-o", "{output}"],
+            {"repo": "/tmp/r", "last": "5"})
+        self.assertIsNone(err)
+        self.assertEqual(argv, ["--repo", "/tmp/r", "--last", "5", "-o", out])
+        # required placeholder missing -> error, never a silent drop
+        argv2, _, err2 = web._build_derive_argv(["--repo", "{repo}"], {})
+        self.assertIsNone(argv2)
+        self.assertIn("repo", err2)
+
+    def test_run_capture_passes_argv_as_data(self):
+        pixi = PIXI + 'echoargs = "python3 -c \'import sys,json;' \
+               ' print(json.dumps(sys.argv[1:]))\'"\n'
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_pkg(tmp, pixi=pixi)
+            rc, out, tier = proc_manager.run_capture(
+                root, "echoargs", ["--x", "a b; rm -rf /", "-o", "/tmp/f"])
+        self.assertEqual(rc, 0)
+        got = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual(got, ["--x", "a b; rm -rf /", "-o", "/tmp/f"])
+
+    def test_git_refs_capability(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIn("error", proc_manager.git_refs(tmp))  # not a repo
+            env = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@x",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@x",
+                   "PATH": "/usr/bin:/bin"}
+            subprocess.run(["git", "init", "-q", "-b", "main", tmp], check=True)
+            (Path(tmp) / "f").write_text("1")
+            subprocess.run(["git", "-C", tmp, "add", "f"], check=True)
+            subprocess.run(["git", "-C", tmp, "commit", "-q", "-m", "one"],
+                           check=True, env=env)
+            subprocess.run(["git", "-C", tmp, "tag", "v0.1.0"], check=True)
+            r = proc_manager.git_refs(tmp)
+        names = {(x["name"], x["kind"]) for x in r["refs"]}
+        self.assertIn(("main", "branch"), names)
+        self.assertIn(("v0.1.0", "tag"), names)
+        self.assertEqual(r["head"], "main")
 
 
 class TestBindingStaleness(unittest.TestCase):

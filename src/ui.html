@@ -74,6 +74,10 @@
   .op .name { font-family: var(--mono); font-size: 12.5px; min-width: 220px; }
   .op .tier { font-size: 11px; color: var(--muted); }
   .stale { font-size: 11px; color: #b45309; margin-left: 6px; }
+  .derive { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
+            margin: 10px 0; background: #f8fafc; }
+  .derive .row { margin: 7px 0; flex-wrap: wrap; }
+  .derive label.note { min-width: 170px; }
   .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
                 background: #c6ccd9; }
   .status-dot.up { background: var(--ok); } .status-dot.down { background: var(--bad); }
@@ -140,6 +144,19 @@ function post(route, payload) {
 /* ---------------- Browse: find Cogs without typing paths ------------------- */
 
 let BROWSE_DIR = null, BROWSE_PATHS = { dirs: [], cogs: [], up: null };
+let BROWSE_MODE = "cog", BROWSE_TARGET = null;   // 'repo' mode picks git repos
+
+function openRepoBrowser(j, name) {
+  BROWSE_MODE = "repo";
+  BROWSE_TARGET = `dv-${j}-${name}`;
+  openBrowser();
+}
+
+function pickRepo(path) {
+  const el = document.getElementById(BROWSE_TARGET);
+  closeBrowser();
+  if (el) { el.value = path; el.dispatchEvent(new Event("change")); }
+}
 
 async function openBrowser(dir) {
   const el = $("#browser");
@@ -158,10 +175,11 @@ async function openBrowser(dir) {
   BROWSE_DIR = b.dir;
   BROWSE_PATHS = { up: b.parent, dirs: (b.subdirs || []).map(d => d.path),
                    cogs: (b.cogs || []).map(c => c.path) };
+  const repoMode = BROWSE_MODE === "repo";
   const dirs = (b.subdirs || []).map((d, i) =>
     `<span class="direntry" onclick="openBrowser(BROWSE_PATHS.dirs[${i}])">
-       ${d.is_cog ? "⚙ " : "📁 "}${esc(d.name)}</span>`).join("");
-  const cogs = (b.cogs || []).map((c, i) => `<div class="cogrow">
+       ${d.is_cog ? "⚙ " : (d.is_git ? "🌿 " : "📁 ")}${esc(d.name)}</span>`).join("");
+  const cogs = repoMode ? "" : (b.cogs || []).map((c, i) => `<div class="cogrow">
       <span class="cid">${esc(c.id || c.name)}</span>
       <span class="k">${esc(c.kind || "")}${c.version ? " · v" + esc(c.version) : ""}</span>
       <span class="sum">${esc(c.summary || c.error || "")}</span>
@@ -169,19 +187,24 @@ async function openBrowser(dir) {
     </div>`).join("");
   el.innerHTML = `<div class="box">
     <div style="display:flex;align-items:center;gap:10px">
-      <b>Open a Cog</b><span style="flex:1"></span>
+      <b>${repoMode ? "Pick a git repository" : "Open a Cog"}</b><span style="flex:1"></span>
+      ${repoMode && b.dir_is_git ?
+        `<button onclick="pickRepo(BROWSE_DIR)">✓ Use this repo</button>` : ""}
       <button class="ghost" onclick="closeBrowser()">Close</button></div>
-    <div class="dirline">${esc(b.dir)}</div>
+    <div class="dirline">${esc(b.dir)}${repoMode && b.dir_is_git ? "  🌿" : ""}</div>
     <div>${b.parent ? `<span class="direntry" onclick="openBrowser(BROWSE_PATHS.up)">⬑ up</span>` : ""}
       ${dirs || `<span class="note">no subfolders</span>`}</div>
-    <div class="note" style="margin-top:12px">Cogs found here${b.truncated ? " (search truncated — go deeper by folder)" : ""}:</div>
-    ${cogs || `<div class="note" style="padding:6px 0">none within 3 levels — navigate with the folders above</div>`}
+    ${repoMode ? `<div class="note" style="margin-top:10px">navigate into a repo (🌿) and
+        press “Use this repo”.</div>`
+      : `<div class="note" style="margin-top:12px">Cogs found here${b.truncated ? " (search truncated — go deeper by folder)" : ""}:</div>
+    ${cogs || `<div class="note" style="padding:6px 0">none within 3 levels — navigate with the folders above</div>`}`}
   </div>`;
 }
 
 function closeBrowser() {
   const el = $("#browser");
   el.style.display = "none"; el.className = ""; el.innerHTML = "";
+  BROWSE_MODE = "cog"; BROWSE_TARGET = null;
 }
 
 function pickCog(path) {
@@ -282,11 +305,96 @@ function renderRun() {
       </select>
       <span class="note">→ POST ${esc(a.endpoint)}</span>
     </div>
+    ${derivePanels(s.schema)}
     <div id="form">${formHtml}</div>
     <div class="row"><button onclick="invoke()">Submit</button>
       <button class="ghost" onclick="showJson()">View JSON</button>
       <span id="busy" class="note"></span></div>
     <div id="result"></div>`;
+}
+
+/* ------- x-cog-param declared derivation: semantics -> client affordances -- */
+
+function deriveSpecs(schema) {
+  const x = (schema || {})["x-cog-param"] || {};
+  return x.v === 1 ? (x.derive || []) : [];   // unknown version -> degrade
+}
+
+function derivePanels(schema) {
+  const specs = deriveSpecs(schema);
+  return specs.map((d, j) => {
+    const rows = Object.entries(d.inputs || {}).map(([name, spec]) => {
+      const id = `dv-${j}-${name}`;
+      const label = `<label class="note">${esc(spec.label || name)}</label>`;
+      if (spec.type === "git-repo")
+        return `<div class="row">${label}
+          <input type="text" id="${id}" style="flex:1"
+            onchange="deriveRepoChanged(${j}, '${esc(name)}')"
+            placeholder="path to a local clone…">
+          <button class="ghost" onclick="openRepoBrowser(${j}, '${esc(name)}')">Browse repo…</button>
+        </div>`;
+      if (spec.type === "git-ref")
+        return `<div class="row">${label}
+          <select id="${id}" data-repofrom="${esc(spec.repo_from || "")}" disabled>
+            <option value="">(pick a repo first)</option></select></div>`;
+      if (spec.type === "enum")
+        return `<div class="row">${label}<select id="${id}">
+          ${(spec.values || []).map(v =>
+            `<option ${v === spec.default ? "selected" : ""}>${esc(v)}</option>`).join("")}
+          </select></div>`;
+      if (spec.type === "integer")
+        return `<div class="row">${label}<input type="number" id="${id}" style="width:90px"></div>`;
+      // unknown semantic type -> honest text box (the degradation rule)
+      return `<div class="row">${label}<input type="text" id="${id}"></div>`;
+    }).join("");
+    return `<div class="derive" id="derive-${j}">
+      <div><b>${esc(d.label || d.id)}</b>
+        <span class="note">— runs this Cog's own declared <code>${esc(d.task)}</code> task;
+        nothing free-form (x-cog-param, proposed)</span></div>
+      ${rows}
+      <div class="row"><button onclick="runDerive(${j})">Build & fill the form</button>
+        <span class="note" id="dv-${j}-busy"></span></div>
+    </div>`;
+  }).join("");
+}
+
+async function deriveRepoChanged(j, name) {
+  const repo = $(`#dv-${j}-${name}`).value.trim();
+  if (!repo) return;
+  const r = await api("/api/gitrefs?repo=" + encodeURIComponent(repo));
+  const selects = document.querySelectorAll(`#derive-${j} select[data-repofrom="${name}"]`);
+  if (r.body.error) {
+    selects.forEach(s => { s.innerHTML = `<option value="">(${esc(r.body.error)})</option>`; });
+    return;
+  }
+  const opts = `<option value="">(none)</option>` +
+    (r.body.head ? `<option value="HEAD">HEAD (${esc(r.body.head)})</option>` : "") +
+    r.body.refs.map(x =>
+      `<option value="${esc(x.name)}">${esc(x.name)} · ${esc(x.kind)} ${esc(x.date)}</option>`).join("");
+  selects.forEach(s => { s.innerHTML = opts; s.disabled = false; });
+}
+
+async function runDerive(j) {
+  const d = deriveSpecs((CARD.input_schema || {}).schema)[j];
+  if (!d) return;
+  const values = {};
+  for (const name of Object.keys(d.inputs || {})) {
+    const el = $(`#dv-${j}-${name}`);
+    if (el && el.value.trim() !== "") values[name] = el.value.trim();
+  }
+  const busy = $(`#dv-${j}-busy`);
+  busy.textContent = `running ${d.task}…`;
+  const r = await post("/api/derive", { path: CARD.root, id: d.id, values });
+  if (!r.body.ok) {
+    busy.textContent = "";
+    $("#result").innerHTML = `<div class="gap">${esc(r.body.error || "derivation failed")}</div>
+      ${r.body.log ? `<pre>${esc(r.body.log)}</pre>` : ""}`;
+    return;
+  }
+  fillForm(r.body.filled, "(from " + d.task + ")");
+  const n = Array.isArray(r.body.filled.commits) ? r.body.filled.commits.length : "?";
+  busy.textContent = `✓ filled — ${n} commits · ${r.body.tier}`;
+  $("#result").innerHTML = "";
 }
 
 function buildForm(schema) {
@@ -405,13 +513,7 @@ function collectForm() {
   return bundle;
 }
 
-async function applyExample() {
-  const name = $("#example").value;
-  if (!name) return;
-  const r = await api(`/api/example?path=${encodeURIComponent(CARD.root)}&name=${encodeURIComponent(name)}`);
-  const data = JSON.parse(r.body.content);
-  const s = CARD.input_schema || {};
-  if (!s.schema) { $("#rawbundle").value = JSON.stringify(data, null, 2); return; }
+function fillForm(data, filenameNote) {
   FILE_ITEMS = {};
   document.querySelectorAll("#form [data-field]").forEach(el => {
     const key = el.dataset.field;
@@ -422,9 +524,19 @@ async function applyExample() {
   });
   document.querySelectorAll("#form [data-fileitems]").forEach(el => {
     const key = el.dataset.fileitems;
-    FILE_ITEMS[key] = (data[key] || []).map(it => ({...it, filename: "(from example)"}));
+    FILE_ITEMS[key] = (data[key] || []).map(it => ({...it, filename: filenameNote || "(filled)"}));
     renderFileItems(key);
   });
+}
+
+async function applyExample() {
+  const name = $("#example").value;
+  if (!name) return;
+  const r = await api(`/api/example?path=${encodeURIComponent(CARD.root)}&name=${encodeURIComponent(name)}`);
+  const data = JSON.parse(r.body.content);
+  const s = CARD.input_schema || {};
+  if (!s.schema) { $("#rawbundle").value = JSON.stringify(data, null, 2); return; }
+  fillForm(data, "(from example)");
 }
 
 function showJson() {
@@ -653,16 +765,30 @@ async function bringUp() {
     const resolveOp = ops.find(o => !o.dependency && o.mode === "run" && o.task === "resolve");
     const svc = ops.find(o => !o.dependency && o.mode === "service");
 
-    for (const d of deps) {
-      // If the dependency's endpoint already answers (started here earlier, or
-      // outside the workbench entirely), don't insist on starting it again.
-      if (await waitHealthy(d.root, 3000)) { say(`${d.label}: already serving`); continue; }
-      say(`starting ${d.label}…`);
-      const r = await post("/api/op/start", { path: CARD.root, root: d.root, task: d.task, args: "" });
-      if (r.body.error && !/already running/.test(r.body.error)) throw new Error(r.body.error);
-      say(`waiting for ${d.label} to answer (model load can take a minute)…`);
-      if (!await waitHealthy(d.root, 180000))
-        throw new Error(`${d.label} did not become healthy — check its logs`);
+    // Satisfiers of one capability are ALTERNATIVES: any one serving meets
+    // the requirement. Try in declared order; fail only if none can.
+    const byCap = {};
+    deps.forEach(d => { (byCap[d.capability || d.name] ||= []).push(d); });
+    for (const [cap, alts] of Object.entries(byCap)) {
+      let met = false;
+      for (const d of alts) {
+        // already answering (started here earlier, or outside the workbench)?
+        if (await waitHealthy(d.root, 2500)) { say(`${d.label}: already serving`); met = true; break; }
+      }
+      if (met) continue;
+      const errs = [];
+      for (const d of alts) {
+        say(`starting ${d.label}…`);
+        const r = await post("/api/op/start", { path: CARD.root, root: d.root, task: d.task, args: "" });
+        if (r.body.error && !/already running/.test(r.body.error)) {
+          errs.push(`${d.label}: ${r.body.error}`); continue;
+        }
+        say(`waiting for ${d.label} to answer (model load can take a minute)…`);
+        if (await waitHealthy(d.root, 180000)) { met = true; break; }
+        errs.push(`${d.label}: no health answer`);
+      }
+      if (!met) throw new Error(`no declared satisfier of ${cap} could be `
+                                + `brought up — ${errs.join("; ")}`);
     }
 
     if (resolveOp) {

@@ -277,7 +277,10 @@ def operations(pkg):
                         "health_url": ((default.get("endpoint") or "").rstrip("/")
                                        + "/models" if default.get("endpoint") else None),
                         "label": f"start {dep.get('id')} ({default.get('kind')})",
-                        "dependency": True})
+                        "dependency": True,
+                        # satisfiers of one requirement are ALTERNATIVES —
+                        # bring-up needs any one of them, not all of them
+                        "capability": r.get("capability")})
     return ops
 
 
@@ -299,7 +302,8 @@ def browse(path, scan_depth=3, max_visits=2000):
     except OSError as e:
         raise PackageError(f"cannot list {root}: {e}")
     subdirs = [{"name": p.name, "path": str(p),
-                "is_cog": (p / "cog.yaml").exists()}
+                "is_cog": (p / "cog.yaml").exists(),
+                "is_git": (p / ".git").exists()}
                for p in children
                if not p.name.startswith(".") and p.name not in SKIP_DIRS]
 
@@ -328,9 +332,27 @@ def browse(path, scan_depth=3, max_visits=2000):
                          and p.name not in SKIP_DIRS)
         except OSError:
             pass
-    return {"dir": str(root),
+    return {"dir": str(root), "dir_is_git": (root / ".git").exists(),
             "parent": str(root.parent) if root.parent != root else None,
             "subdirs": subdirs, "cogs": cogs, "truncated": bool(queue)}
+
+
+def derivations(pkg):
+    """The x-cog-param `derive` blocks of this Cog's input schema (possibly
+    from an overlay). This is the AUTHORITATIVE list — the server refuses any
+    derive request whose id is not in it, the same rule runnable operations
+    follow. Returns [] when the extension is absent (the degraded path)."""
+    s = input_schema(pkg)
+    schema = s.get("schema") or {}
+    x = schema.get("x-cog-param") or {}
+    if x.get("v") != 1:
+        return []
+    out = []
+    for d in x.get("derive") or []:
+        if isinstance(d, dict) and d.get("id") and d.get("task") \
+                and isinstance(d.get("argv"), list):
+            out.append(d)
+    return out
 
 
 def binding_mtime(path):

@@ -4,6 +4,28 @@
   "description": "Input for openteams/cog-release-notes. PROPOSED contract: this file is what the manifest would reference as context.input_schema — shipped here as a workbench overlay so the frozen forge package stays untouched.",
   "type": "object",
   "required": ["repository", "from_ref", "to_ref", "audience", "commits"],
+  "x-cog-param": {
+    "v": 1,
+    "derive": [
+      {
+        "id": "from-git",
+        "label": "Build from a local git repository",
+        "task": "bundle",
+        "inputs": {
+          "repo": { "type": "git-repo", "required": true, "label": "repository (local clone)" },
+          "from": { "type": "git-ref", "repo_from": "repo", "label": "older ref (exclusive)" },
+          "to": { "type": "git-ref", "repo_from": "repo", "default": "HEAD", "label": "newer ref" },
+          "last": { "type": "integer", "label": "…or just the last N commits" },
+          "audience": { "type": "enum", "values": ["users", "developers", "maintainers"],
+                        "default": "users" }
+        },
+        "argv": ["--repo", "{repo}", "--from?", "{from}", "--to?", "{to}",
+                 "--last?", "{last}", "--audience?", "{audience}", "-o", "{output}"],
+        "output": "json-file",
+        "fills": "$"
+      }
+    ]
+  },
   "properties": {
     "repository": {
       "type": "string",

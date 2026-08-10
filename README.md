@@ -14,6 +14,12 @@ renders — **and runs** — what the package declares:
   invoke form: dropdowns from enums, file pickers that fill evidence items
   with file content, JSON sub-editors for the genuinely complex parts.
   Shipped as overlays for the frozen forge Cogs.
+- **Parameter semantics + declared derivation (`x-cog-param`).** Fields can
+  say what they *are* (a git repo, a ref of that repo) and the whole form can
+  declare itself producible by one of the Cog's own tasks: for
+  cog-release-notes, browse to a local clone, pick from/to refs from
+  dropdowns, and one button runs the declared `bundle` task and fills the
+  form. Proposal doc: `output/cog-param-protocol.md` in coglab.
 - **Chat that works.** Same client-held-thread surface, plus a pre-flight
   probe that tells you the model isn't serving and takes you to the button
   that starts it.
@@ -45,7 +51,7 @@ unchanged from cog-client.
 
 Loopback only, no auth, and the server will only run tasks derived from the
 package's own declarations — never a free-form command. `pixi run test` runs
-the 35-test model-free suite. The server itself needs only Python + PyYAML —
+the 40-test model-free suite. The server itself needs only Python + PyYAML —
 pixi.toml parsing degrades to an honest built-in fallback on interpreters
 older than 3.11 (`src/toml_compat.py`).
 
