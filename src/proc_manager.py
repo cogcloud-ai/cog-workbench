@@ -51,8 +51,13 @@ def resolve_command(root, task):
     if task not in tasks:
         raise ValueError(f"task {task!r} is not declared in {root.name}/pixi.toml")
 
-    if shutil.which("pixi") and _env_python(root):
-        return ["pixi", "run", "--frozen", task], False, "pixi (locked env)"
+    pixi = shutil.which("pixi")
+    if not pixi:
+        installed = Path.home() / ".pixi" / "bin" / "pixi"
+        if installed.is_file():
+            pixi = str(installed)
+    if pixi and _env_python(root):
+        return [pixi, "run", "--frozen", task], False, "pixi (locked env)"
 
     cmd = tasks[task]
     if isinstance(cmd, dict):
@@ -177,7 +182,7 @@ class ProcessManager:
                 if shell:
                     cmd = f"{cmd} {extra_args}"
                 else:
-                    cmd = cmd + ["--"] + str(extra_args).split()
+                    cmd = cmd + ["--"] + shlex.split(str(extra_args))
 
             popen = subprocess.Popen(
                 cmd, shell=shell, cwd=str(root), env=_child_env(),

@@ -1,7 +1,8 @@
 """Read a Cog package and derive what a client can do with it.
 
 This is the INSPECT half of the reference client (starting-point doc §6.2):
-pure reading — COG.md frontmatter, cog.yaml, installation state (model.json if
+pure reading — COG.md frontmatter, the manifest ([tool.cog] in
+pixi.toml, or cog.yaml), installation state (model.json if
 present), and example bundles. No runtime is involved and nothing is invoked.
 
 Vocabulary note (Travis, 2026-08-08): the harness is part of the runtime INSIDE
@@ -28,16 +29,64 @@ class PackageError(Exception):
     pass
 
 
+# ---------------------------------------------------------------- manifest --
+# The profile manifest lives in ONE of: pixi.toml under [tool.cog] (the
+# default since cog-smith's migrate; `version`/`summary` fall back to
+# [workspace] version/description) or a standalone cog.yaml. Same rules as
+# cog-smith's smith_manifest.py.
+
+def _pixi_manifest(root):
+    p = Path(root) / "pixi.toml"
+    if not p.exists():
+        return None
+    try:
+        with open(p, "rb") as f:
+            doc = tomllib.load(f)
+    except (ValueError, OSError):
+        return None
+    tool = doc.get("tool")
+    if not (isinstance(tool, dict) and isinstance(tool.get("cog"), dict)):
+        return None
+    m = dict(tool["cog"])
+    ws = doc.get("workspace") or doc.get("project") or {}
+    if "version" not in m and ws.get("version") is not None:
+        m["version"] = ws["version"]
+    if "summary" not in m and ws.get("description") is not None:
+        m["summary"] = ws["description"]
+    return m
+
+
+def manifest_path(root):
+    """pixi.toml or cog.yaml, whichever carries the manifest; else None."""
+    root = Path(root)
+    if _pixi_manifest(root) is not None:
+        return root / "pixi.toml"
+    if (root / "cog.yaml").exists():
+        return root / "cog.yaml"
+    return None
+
+
+def read_manifest(root):
+    """(manifest, path). Raises PackageError when neither form is present
+    or the file is unreadable."""
+    root = Path(root)
+    m = _pixi_manifest(root)
+    if m is not None:
+        return m, root / "pixi.toml"
+    cy = root / "cog.yaml"
+    if not cy.exists():
+        raise PackageError(f"{root} is not a Cog package (no pixi.toml "
+                           f"[tool.cog] and no cog.yaml)")
+    try:
+        return (yaml.safe_load(cy.read_text()) or {}), cy
+    except yaml.YAMLError as e:
+        raise PackageError(f"cog.yaml is not valid YAML: {e}")
+
+
 def load_package(path):
     """Load a Cog package directory into a structured, read-only view."""
     root = Path(path).expanduser().resolve()
-    manifest_path = root / "cog.yaml"
-    if not manifest_path.exists():
-        raise PackageError(f"{root} is not a Cog package (no cog.yaml)")
-    try:
-        manifest = yaml.safe_load(manifest_path.read_text()) or {}
-    except yaml.YAMLError as e:
-        raise PackageError(f"cog.yaml is not valid YAML: {e}")
+    manifest, _ = read_manifest(root)
 
     frontmatter, readme_body = {}, None
     cogmd = root / "COG.md"
@@ -257,11 +306,9 @@ def operations(pkg):
             if not src:
                 continue
             dep_root = (Path(root) / src).resolve()
-            if not (dep_root / "cog.yaml").exists():
-                continue
             try:
-                dep = yaml.safe_load((dep_root / "cog.yaml").read_text()) or {}
-            except yaml.YAMLError:
+                dep, _ = read_manifest(dep_root)
+            except PackageError:
                 continue
             default = next((i for i in dep.get("interfaces") or []
                             if i.get("default") and i.get("task")), None)
@@ -290,7 +337,7 @@ SKIP_DIRS = {".git", ".pixi", "node_modules", "__pycache__", ".venv", "venv",
 
 def browse(path, scan_depth=3, max_visits=2000):
     """Directory listing + a bounded scan for Cog packages, for the open
-    dialog. Read-only METADATA only — directory names and cog.yaml headers,
+    dialog. Read-only METADATA only — directory names and manifest headers,
     never file contents. (The §1 rejection of server-side file browsing was
     about pulling file CONTENT into invoke payloads; finding packages to open
     is the same authority /api/package?path= already has.)"""
@@ -302,7 +349,7 @@ def browse(path, scan_depth=3, max_visits=2000):
     except OSError as e:
         raise PackageError(f"cannot list {root}: {e}")
     subdirs = [{"name": p.name, "path": str(p),
-                "is_cog": (p / "cog.yaml").exists(),
+                "is_cog": manifest_path(p) is not None,
                 "is_git": (p / ".git").exists()}
                for p in children
                if not p.name.startswith(".") and p.name not in SKIP_DIRS]
@@ -311,16 +358,15 @@ def browse(path, scan_depth=3, max_visits=2000):
     while queue and visits < max_visits:
         d, depth = queue.pop(0)
         visits += 1
-        cy = d / "cog.yaml"
-        if cy.exists():
+        if manifest_path(d) is not None:
             entry = {"path": str(d), "name": d.name}
             try:
-                m = yaml.safe_load(cy.read_text()) or {}
+                m, _ = read_manifest(d)
                 entry.update({"id": m.get("id"), "kind": m.get("kind"),
                               "version": m.get("version"),
                               "summary": (m.get("summary") or "").strip()})
             except Exception:
-                entry["error"] = "cog.yaml unreadable"
+                entry["error"] = "manifest unreadable"
             cogs.append(entry)
             continue                      # a Cog is a leaf; don't descend
         if depth >= scan_depth:

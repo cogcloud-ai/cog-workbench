@@ -16,7 +16,7 @@ not documentation-after-the-fact.
 - Serve: `pixi run serve -- --path ../cog-forge/cog-release-notes`
   (port 8071; or plain `python3 src/cog_workbench_web.py` — the server needs
   only python + pyyaml)
-- Test: `python3 -m unittest discover -s tests` — 41 tests, model-free,
+- Test: `python3 -m unittest discover -s tests` — 59 tests, model-free,
   must pass on Python 3.10 (the device VM floor). Playwright drives live
   E2E in cloud sessions only.
 

@@ -1,0 +1,15 @@
+{
+  "workflow": "openteams/cog-building-design [0.1-draft]",
+  "purpose": "Reviewable design and building sequence; not an executable Op-manager definition",
+  "steps": [
+    {"id": "op-design", "cog": "openteams/cog-op-designer", "output": "op proposal", "gate": "review proposal"},
+    {"id": "brief-handoff", "tool": "workbench handoff", "output": "cog-author design requests"},
+    {"id": "contract", "cog": "openteams/cog-author", "operation": "design", "gate": "accept work contract"},
+    {"id": "source", "cog": "openteams/cog-author", "operation": "author or revise", "gate": "clean authored envelope"},
+    {"id": "evaluation-plan", "cog": "openteams/cog-build-evaluator", "operation": "plan", "gate": "review cases"},
+    {"id": "package", "tool": "workbench package", "cog": "openteams/cog-smith", "gate": "full source transferred and package checks pass"},
+    {"id": "test", "tool": "workbench verify/evaluate", "output": "execution evidence for exact candidate and composition"},
+    {"id": "review", "cog": "openteams/cog-build-evaluator", "operation": "review", "gate": "caller decides acceptance or revision"}
+  ],
+  "prohibits": ["execute_designed_op", "publish_without_user_instruction", "treat_ok_with_problems_as_acceptance", "claim_subscription_results_as_bare_model_evidence"]
+}

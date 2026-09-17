@@ -251,6 +251,70 @@ health probes came across unchanged (v0 remains the demo of "today's
 constraints only"). The CLI is unchanged except that it now lives beside the
 workbench server; the buttons are the new surface, not a replacement for it.
 
+## Future direction: cog-workbench tool suite
+
+Recorded 2026-09-07: Trent prefers retaining **cog-workbench** as the name
+for the broader collection of tools for building, evaluating, testing and
+working with Cogs. This is a direction for future development, not a claim
+that these workflows are already integrated.
+
+The **dynamic selector/binder** is a component within that suite. It discovers
+eligible satisfiers, selects compatible Context / Harness / Model combinations,
+and coordinates qualification and host admission into explicit bindings.
+Selection does not itself grant authority; admission remains a host decision.
+Invocation, building, testing and evaluation can consume those bindings through
+shared contracts. The selector/binder is client-side tooling, distinct from
+the Harness-only Cog supplying the interaction machinery.
+
+Workbench can coordinate specialized tools and Cogs: cog-author for authoring,
+cog-smith for final packaging and package checks, and cog-build-evaluator for
+evaluation planning and evidence review. Their existing responsibilities remain
+useful component boundaries as the suite grows.
+
+**Alternatives and tradeoffs:** retain the established workbench name rather
+than rename it around binding or create a separate umbrella product. Keep the
+selector/binder a distinct component so multiple workflows can use it without
+coupling selection policy to the UI. Its final name, API and repository boundary
+remain open; a suite does not require every tool to live in one repository.
+
+## Future tooling: dynamic Context / Harness / Model composition
+
+Recorded 2026-09-07 at Trent's request. **Backlog item only; implementation
+is not started or authorized by this record.**
+
+Workbench should support assembling separately selected Context, Harness-only
+and Model Cogs. Its existing dependency → resolve → serve sequence and model.json
+display do not implement independent harness binding or three-part composition.
+
+The future capability should:
+
+- Discover the context Cog's model and harness requirements and the available
+  providers' configuration and credential-reference contracts.
+- Qualify and admit a model binding, then a compatible Harness-only binding
+  referencing that exact model revision; preserve Model versus Model+Harness
+  distinctions rather than silently substituting one for another.
+- Supply the context Cog's permitted context and packaged contract checks to
+  the selected harness, honoring memory, tool grants and approval requirements.
+- Invoke the assembled system and retain all three identities, exact binding
+  revisions, qualification evidence and run records. Changes require explicit
+  rebinding; an unavailable dependency must not cause silent substitution.
+
+First proof: one context Cog runs through a separate Harness-only Cog bound
+to cog-openrouter, with workbench performing the assembly. Current author and
+evaluator Cogs carry their own interaction machinery; portability to an external
+harness must be demonstrated, not assumed. A working Harness-only Cog and
+consumer-contract conformance fixtures are prerequisites.
+
+Starting material: the configurable-satisfier proposal in the cog-manifest-openteams repository (then `cogspec`),
+the cog-openrouter reference host and its spec findings, and the existing
+default-stack, harness-satisfier and composition-points architecture notes.
+
+**Alternatives and tradeoffs:** extend workbench as the existing reference client
+instead of starting another executor project. Extract a reusable execution
+library only if implementation demonstrates a need. Dynamic composition adds
+admission, credential handling and provenance responsibilities beyond process
+bring-up; scope and concrete contracts require a separate implementation task.
+
 ## Scorecard against GAPS.md
 
 | Gap | Status here |
@@ -264,3 +328,103 @@ workbench server; the buttons are the new surface, not a replacement for it.
 | #7 fixed ports | Unchanged (dependency ops make collisions visible at least) |
 | #8 streaming | **Deferred**, documented |
 | #9 health conventions | Unchanged conventions, now attached to live process state |
+
+## Implementation: goal-first suite and explicit composition (2026-09-07)
+
+Trent authorized building the subscription Cogs, extending workbench, and adding
+an Op designer feeding Cog building. This implements a bounded first version of
+the future direction above; it supersedes that section's backlog-only status for
+the capabilities described here. The name remains **cog-workbench**.
+
+**Implemented:** a separate `/studio` screen and `suite` CLI; catalog discovery;
+configuration-driven selector/binder; immutable host records; context/harness/model
+composition with revocation and package-change checks; goal → Op-design proposal
+→ missing-Cog briefs → author contract/source → evaluation plan → complete Smith
+package → tests/cases → independent evaluator review. See `docs/tool-suite.md`.
+The sequence is a building aid, not a persisted executable Op-manager definition.
+
+The cognitive modules are independent Cogs: cog-op-designer, existing cog-author
+and cog-build-evaluator. The separate cog-turn-harness supplies a minimal JSON
+interaction with an independently bound OpenRouter model. cog-chatgpt and
+cog-claude supply inseparable subscription Model+Harness access through official
+vendor CLIs. Their advertised vendor tool restrictions are weaker than a portable
+no-tools proof; they cannot satisfy bare-model evaluation requirements.
+
+**Context portability:** the context Cog explicitly declares a composition bridge
+that runs its existing input/output schemas and author-owned checks. No Smith
+src machinery was changed. The bridge is maintained in workbench and copied
+byte-identically into opting-in Cogs. Providers do not falsely advertise that
+they independently execute consumer checks. Built packages opt into this same
+bridge, respecting local-only contracts when present.
+
+**Host authority:** provider candidates do not self-admit. Workbench checks request
+correlation, composition, requirements, locality, features, package content and
+separate dependencies. New turn providers support declaration evidence only;
+workbench separately repeats local CLI readiness inspection and applies policy.
+OpenRouter still uses its separate reference-host admission with fresh catalog
+checks. Its manifest now declares host-adapter tasks in a distinct extension,
+without turning admission into the provider's bind operation. Same-user filesystem
+ownership is the local reference authority boundary, not protection from malicious
+local package code. The new browser write surface requires a session token and
+same origin. All suite operations are journaled; secret values are not persisted.
+
+**Spec findings:** combined turns need nullable model references; combined providers
+must not be forced into the model-inference protocol; a local declared command
+transport must be distinct from the existing HTTP protocol. The unadopted draft
+and vendored schemas were updated together. Vendor strict JSON output cannot
+represent every open-ended schema document produced by the author/designer, so
+those cases request JSON through context and enforce the complete schema locally.
+
+**Alternatives and tradeoffs:**
+
+- Keep cognitive design/author/review in Cogs instead of embedding prompts in UI
+  code. Workbench retains deterministic host authority and explicit review gates.
+- Use official CLIs and their login stores instead of implementing third-party
+  subscription OAuth or extracting bearer tokens. CLI changes may require adapter
+  updates and rebinding; subscription internals remain unverified.
+- Use an explicit context bridge instead of altering or impersonating legacy
+  model.json bindings. This records all component identities but requires opt-in.
+- Vendor one small runtime into three independently installable Cog repositories
+  rather than add a shared published package dependency now. Copy-identity tests
+  and hashes make synchronization reviewable; a library can be extracted later.
+- Use bounded local jobs and saved artifacts rather than an Op scheduler. There
+  is no automatic publishing, autonomous repair loop or running of designed Ops.
+- Existing inspector behavior and meeting-owned contract gaps remain separate.
+
+Validation and live-test limitations are recorded in
+`docs/verification-2026-09-07.md`. Pre-existing local edits to cog_package.py and
+toml_compat.py were preserved.
+
+The suite also offers an explicit **Install environment** action. This derives
+installation from the loaded package's Pixi declaration and runs a fixed Pixi
+install operation; it accepts no command text. Installation is separate from
+packaging and testing so dependencies are visible and no generated task silently
+installs them. No dependencies were added to workbench's own runtime.
+
+## Live authoring timeout (2026-09-07)
+
+The approved live workflow reached contract design, then whole-source authoring
+exceeded the provider's 180-second limit. Subscription turns now have a bounded
+600-second allowance; the workbench turn call allows 660 seconds so provider
+cleanup can complete. Readiness checks remain 15 seconds, other operations keep
+their existing limits, and timeout still kills the vendor process group and
+accepts no partial output. Alternatives: split authoring into multiple contract
+operations (larger API change) or silently retry (would conceal failures and
+consume more subscription usage). A longer bounded call is the smallest repair;
+latency remains visible and provider changes require a new binding revision.
+
+## Concrete evaluator case inputs (2026-09-07)
+
+A live plan returned matrices, output mutations and construction recipes in its
+input objects. Workbench sends each input unchanged to the candidate; accepting
+these would misreport unsupported procedures as candidate failures. Evaluator
+checks now require each case input to satisfy the accepted candidate input schema,
+using only local schema references. Its context states the single-invocation scope.
+Workbench already revalidates the plan before invoking any cases.
+
+Alternatives: implement a free-form test interpreter (violates declared-operation
+boundaries), or add a typed multi-operation test protocol now (larger spec change).
+The bounded repair retains direct invocation cases; invalid-input, output-mutation,
+capacity and side-effect instrumentation need separate execution evidence. This
+means a correct candidate may still receive insufficient_evidence, which is more
+accurate than an unsupported pass or a false failure.

@@ -1,5 +1,11 @@
 # cog-workbench
 
+The Cog tool suite now also includes a **Design & build** screen at `/studio`:
+start with an outcome, design an Op, select and bind context/harness/model Cogs,
+and feed missing capabilities into Cog authoring, packaging and evaluation.
+See [the tool-suite guide](docs/tool-suite.md) and
+[verification status](docs/verification-2026-09-07.md).
+
 The gap-filled fork of `cog-client`: same inspector, but the client now holds
 the authority an invocation environment actually has. Point it at a Cog and it
 renders — **and runs** — what the package declares:

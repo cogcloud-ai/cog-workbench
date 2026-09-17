@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cog_package  # noqa: E402
 import cog_invoke  # noqa: E402
 import proc_manager  # noqa: E402
+import suite_web  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 UI = HERE / "ui.html"
@@ -47,6 +48,7 @@ def journal(entry):
 
 
 PM = proc_manager.ProcessManager(journal=journal)
+suite_web.MANAGER = PM
 
 _PLACEHOLDER = re.compile(r"^\{([a-z_]+)\}$")
 
@@ -113,6 +115,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         route, q = self._q()
         try:
+            if suite_web.get(self, route, q, journal):
+                return
             if route == "/":
                 html = UI.read_text()
                 preload = q.get("path") or DEFAULT_PATH or ""
@@ -174,6 +178,8 @@ class Handler(BaseHTTPRequestHandler):
             if length <= 0 or length > MAX_BODY:
                 return self._send(400, {"error": "bad content length"})
             body = json.loads(self.rfile.read(length).decode("utf-8", "replace"))
+            if suite_web.post(self, route, body, journal):
+                return
 
             if route == "/api/invoke":
                 pkg = _load(body.get("path"))
