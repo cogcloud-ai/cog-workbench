@@ -428,3 +428,12 @@ The bounded repair retains direct invocation cases; invalid-input, output-mutati
 capacity and side-effect instrumentation need separate execution evidence. This
 means a correct candidate may still receive insufficient_evidence, which is more
 accurate than an unsupported pass or a false failure.
+
+## 2026-09-22: Builder-suite licensing
+
+With OpenTeams authorization, use Apache-2.0 for the builder suite, including
+Workbench. Compared with retaining BSD-3-Clause, this aligns the suite and
+adds explicit contributor patent terms at the cost of additional notice
+obligations. Preserve third-party terms and historical BSD releases. This
+changes package identity; existing pinned compositions may require renewed
+admission and activation.

@@ -70,3 +70,10 @@ older than 3.11 (`src/toml_compat.py`).
 | Response envelope / pass-fail rule | **Still the meeting's** — the workbench demonstrates the gap on every invocation |
 | `io` conversability vocabulary | **Still the meeting's** — chat-shape remains inferred and labeled |
 | Streaming | Deferred (`DECISIONS.md` §3) |
+
+## License
+
+Copyright 2026 OpenTeams. Licensed under the [Apache License 2.0](LICENSE).
+Third-party dependencies and external model services retain their own licenses
+and terms. Previously published BSD-3-Clause versions remain available under
+that license.

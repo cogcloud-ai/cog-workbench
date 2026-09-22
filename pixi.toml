@@ -1,4 +1,5 @@
 [workspace]
+license = "Apache-2.0"
 name = "cog-workbench"
 version = "0.1.0"
 description = "The gap-filled reference client: schema-driven forms with file pickers, runnable operations with live logs, working chat, activity journal. An invocation environment with its authority made explicit."
