@@ -2,3 +2,12 @@
 __pycache__/
 *.pyc
 var/
+# Local installation and execution state
+.pixi/
+.DS_Store
+.env
+.env.*
+!.env.example
+model.json
+.op-composition.json
+runs/

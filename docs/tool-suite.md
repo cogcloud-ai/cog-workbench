@@ -1,8 +1,23 @@
 # Cog Workbench: design and building tools
 
-Workbench is the suite. Its selector/binder is one component. The Op designer
+Workbench is the suite’s local client. Its selector/binder is one component. The Op designer
 produces a proposal and Cog-building inputs; this is not an Op manager,
 scheduler, deployment service or general workflow execution engine.
+
+The intended build lifecycle belongs to `op-cog-builder`; Workbench will be its
+client and invocation environment. See the [Op implementation plan](https://github.com/cogcloud-ai/cog-op-builder/blob/main/docs/roadmap.md)
+and [basic shared Op execution example](https://github.com/cogcloud-ai/op-builder-smoke/blob/main/README.md).
+The manual suite workflow below remains available while the Op seams are built.
+
+The first [executable Cog Builder Op](https://github.com/cogcloud-ai/op-cog-builder/blob/main/README.md) now takes
+an accepted pure-code contract through one complete candidate review. Activate
+admitted bindings with `suite activate-composition --context cog-author
+--binding-id ID --revision N` and the same command for `cog-build-evaluator`.
+Their declared `ask-composed` usage tasks work with the existing shared Op runtime.
+The Op owns sequencing; Workbench supplies composition and local execution services.
+
+For a worked code-Cog build, see the [Merge Findings pipeline report](merge-findings-pipeline-build-2026-09-21.md),
+including the author revision, native tests, and reference-comparison limits.
 
 ## Start here
 
@@ -51,7 +66,7 @@ bare-model benchmarks.
 | workbench context bridge | Consumer's own checks before/after an external turn |
 | workbench building tools | Handoffs, source transfer, tests, case execution and evidence records |
 
-Cogs own cognitive work. Workbench owns local authority, admission, operation
+Cogs own design, authoring, assessment, and bounded deterministic work. Workbench owns local authority, admission, operation
 invocation and evidence storage. The selector returns configurable providers,
 not admitted satisfiers, until configuration and qualification are complete.
 The current host supports the three supplied turn providers and the separate
@@ -60,7 +75,7 @@ OpenRouter reference-host adapter; it is not a universal provider resolver.
 ## CLI and reusable artifacts
 
 All suite commands return JSON. Package names are relative to the workspace
-(CogLab), while request filenames are relative to the current shell directory.
+(the parent of the sibling checkouts), while request filenames are relative to the current shell directory.
 
 ```sh
 pixi run suite -- catalog
@@ -125,7 +140,7 @@ origin. Workbench stays on loopback and is not a public or multi-user service.
   check declared capability/output vocabulary and fingerprints; they are not
   semantic proof of compatibility. The designer checks artifact flow, not full
   JSON-Schema subsumption across an existing Cog's input/output contracts.
-- Building starts with bounded context Cogs supported by cog-author/Smith.
+- Building supports bounded context Cogs and pure code Cogs through cog-author/Smith.
   Multi-Cog build scheduling, automatic repair loops, publishing and Op execution
   are outside this implementation.
 - Browser results are saved locally, but the in-progress screen is not restored
@@ -134,3 +149,39 @@ origin. Workbench stays on loopback and is not a public or multi-user service.
   of roles is not proof of independent model judgment.
 
 See `verification-2026-09-07.md` for what was actually tested.
+
+## Pure code builds
+
+A new designer brief can set `cog_kind: code`; the handoff carries `kind: code`
+to author design. Accepted contracts and author identities retain it; the identity
+omits `model_cog`. Old artifacts without kind retain context semantics. Legacy
+proposal choices of kind `code` must be redesigned as `new` with a code brief
+(or an existing catalog choice) before handoff.
+
+Packaging selects Smith's code template and transfers the complete source. Native
+case execution uses the declared default usage task, no interaction binding, and
+records the whole package fingerprint. `suite evaluate` accepts omitted binding
+flags for code Cogs. The author and evaluator themselves still need a provider.
+
+The current code path supports pure Cogs only: empty `requires` and `reaches`.
+It is trusted local execution, not a sandbox. Native evidence status describes
+whether a valid candidate envelope was observed, including expected warnings or
+refusals; it does not accept the behavior. The evaluator compares actual payload,
+problems and errors to each criterion. Changed source is refused before execution;
+package changes during cases invalidate the run.
+
+## Expanded source snapshots
+
+Large author outputs may refer by SHA-256 to their accepted contract and supplied
+JSON schemas instead of repeating them. Before planning evaluation, obtain the
+complete source through the author's declared exporter:
+
+```sh
+pixi run suite -- snapshot --request author-request.json --envelope author-result.json
+```
+
+The result is an evaluator plan request with full contract and file contents.
+Studio uses this same operation. Packaging and case execution also verify and
+expand the references. Hash mismatch or an ambiguous material name refuses the
+handoff. References never access local paths, and executable code cannot use
+references. The evaluator's fingerprint covers the expanded bytes.

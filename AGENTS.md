@@ -1,6 +1,6 @@
 # AGENTS.md — cog-workbench contributor instructions
 
-Read `../CLAUDE.md` (coglab root) for workstream context and vocabulary.
+Read the suite guide linked from README.md for project context.
 This file is the repo-local contract for any agent or human editing here.
 
 ## What this repo is
@@ -17,7 +17,7 @@ not documentation-after-the-fact.
   (port 8071; or plain `python3 src/cog_workbench_web.py` — the server needs
   only python + pyyaml)
 - Test: `python3 -m unittest discover -s tests` — 59 tests, model-free,
-  must pass on Python 3.10 (the device VM floor). Playwright drives live
+  use the Python version declared in pixi.toml. Playwright drives live
   E2E in cloud sessions only.
 
 ## Invariants — do not regress

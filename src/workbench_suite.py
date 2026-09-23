@@ -102,7 +102,7 @@ class Suite:
         require(not Path(relative).is_absolute() and path.resolve().is_relative_to(Path(root).resolve()), 'Declared file must stay inside its package.')
         return path
 
-    def call(self, root, task, args=(), timeout=240, expect_json=True):
+    def call(self, root, task, args=(), timeout=240, expect_json=True, stdout_limit=30000):
         root = self.root(root); m = self.manifest(root)
         allowed = {x.get('task') for x in m.get('interfaces', [])} | {'test', 'eval', 'check'}
         host = (m.get('extensions') or {}).get('workbench_host', {})
@@ -127,7 +127,7 @@ class Suite:
             raise ValueError('Declared operation timed out.') from None
         self.journal('suite-operation-exit', cog=m['id'], task=task, exit_code=result.returncode)
         if not expect_json:
-            return {'exit_code': result.returncode, 'stdout': result.stdout[-30000:], 'stderr': result.stderr[-5000:]}
+            return {'exit_code': result.returncode, 'stdout': result.stdout if stdout_limit is None else result.stdout[-stdout_limit:], 'stderr': result.stderr[-5000:]}
         try: value = json.loads(result.stdout)
         except ValueError: raise ValueError('Declared operation did not return JSON; check its environment and installation.') from None
         if result.returncode != 0:
@@ -284,6 +284,25 @@ class Suite:
         self.journal('suite-composed',consumer=value['consumer'],binding=ref)
         return {'record_path':path,**value}
 
+    def activate_composition(self, context, ref):
+        """Install an explicit local binding for the consumer's usage adapter."""
+        root = self.root(context)
+        require(any(i.get('task') == 'ask-composed' and i.get('audience') == 'usage'
+                    for i in self.manifest(root)['interfaces']), 'Consumer has no composed usage interface.')
+        composition = self.compose(root, ref)
+        value = {'composition': composition, 'state': str(self.state),
+                 'host_sha256': package_digest(HERE)}
+        value['sha256'] = digest(value)
+        path = root / '.op-composition.json'
+        require(not path.is_symlink(), 'Installed composition may not be a symlink.')
+        with tempfile.NamedTemporaryFile(mode='w', dir=root, delete=False) as f:
+            json.dump(value, f, indent=2)
+            temp = Path(f.name)
+        os.chmod(temp, 0o600)
+        os.replace(temp, path)
+        self.journal('suite-composition-activated', consumer=composition['consumer'], binding=ref, path=str(path))
+        return {'path': str(path), 'composition': composition}
+
     def invoke(self, composition, bundle):
         value=copy.deepcopy(composition);value.pop('record_path',None)
         checksum=value.pop('sha256')
@@ -308,6 +327,7 @@ class Suite:
         require(output['request_id']==request['request_id'] and output['binding']==request['binding'] and output['model_binding']==request['model_binding'], 'Turn response correlation failed.')
         require(not output['tool_uses'],'Unexpected tool activity.')
         self.load(value['binding'])  # Revocation or package changes during turn fail closed.
+        require(package_digest(root) == value['context_sha256'], 'Context package changed during the turn.')
         provenance={'composition':value,'harness':b,'model':documents.get('model'), 'provider_response_binding':response['binding'],'provider_observations':response.get('provider_observations'),
                     'evidence_scope':'composed-system','model_identity_verified':False}
         result=self.bridge(root,'finish',{'bundle':bundle,'result':output['result'],'provenance':provenance})
@@ -329,16 +349,31 @@ class Suite:
             choice=step['choice']
             if choice['kind']=='existing':
                 require(choice['cog_id'] in current and current[choice['cog_id']]['fingerprint']==choice['catalog_fingerprint'],'Suggested existing Cog has changed or disappeared.')
+        require(not any(s['choice']['kind']=='code' for s in payload['steps']),
+                'Legacy code choices have no build brief. Redesign as new with a code Cog brief or select an existing Cog.')
         requests=[]
         for brief in payload['cog_briefs']:
             relevant=[s for s in payload['steps'] if s['id'] in brief['step_ids']]
             bundle={'operation':'design','brief':brief['brief'],'contract':None,'identity':None,
                     'materials':[{'path':'op-design.json','content':json.dumps({'goal':payload['goal'],'constraints':request['constraints'],
                     'success_criteria':request['success_criteria'],'steps':relevant,'artifacts':payload['artifacts'],'prohibits':brief['prohibits']})}], 'feedback':[]}
+            if brief.get('cog_kind') == 'code': bundle['kind']='code'
             requests.append({'name':brief['name'],'brief_id':brief['id'],'bundle':bundle})
         value={'handoff':1,'status':'awaiting-cog-contract-design','proposal_sha256':digest(envelope),'requests':requests}
         path=self.save('handoffs',value);self.journal('suite-design-handoff',path=path,count=len(requests))
         return {'path':path,**value}
+
+    def source_snapshot(self, request, envelope):
+        """Obtain the author's validated, fully expanded evaluation snapshot."""
+        clean(envelope)
+        temp,files=self.documents({'request':request,'envelope':envelope})
+        with temp:
+            draft=Path(temp.name)/'draft'
+            result=self.call('cog-author','export-draft',['--request',files['request'],'--envelope',files['envelope'],'--out',draft],expect_json=False)
+            require(result['exit_code']==0, 'Author export rejected the source snapshot.')
+            snapshot=json.loads((draft/'eval-plan.json').read_text())
+        self.journal('suite-source-snapshot',author_envelope_sha256=digest(envelope),snapshot_sha256=digest(snapshot))
+        return snapshot
 
     def package(self, request, envelope, destination):
         """Accepted authored snapshot -> full Smith package; never a starter-only handoff."""
@@ -354,7 +389,8 @@ class Suite:
             handoff=json.loads((draft/'handoff.json').read_text())
             # Smith creates into a staging sibling. Final destination stays absent on failure.
             stage=Path(temp.name)/request['identity']['name']
-            result=self.call('cog-smith','new',['--from-request',draft/'smith-request.json','--dir',stage,'--envelope'])
+            kind=handoff.get('kind','context')
+            result=self.call('cog-smith','new',['--kind',kind,'--from-request',draft/'smith-request.json','--dir',stage,'--envelope'])
             clean(result)
             for relative in handoff['source_paths']:
                 source=draft/'source'/relative
@@ -363,20 +399,21 @@ class Suite:
                 target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source,target)
             import yaml
             m=yaml.safe_load((stage/'cog.yaml').read_text())
-            for req in m.get('requires',[]):req['locality']=handoff['contract']['locality']
-            m['evaluation']['fixtures']=handoff['fixture_paths']
-            # Opt the built context into the same explicitly declared bridge.
-            (stage/'scripts').mkdir(exist_ok=True)
-            shutil.copyfile(HERE/'bridges/context_bridge.py',stage/'scripts/context_bridge.py')
-            m.setdefault('extensions',{})['workbench_composition']={
-                'contract':'openteams/context-composition [0.1-draft]','bridge_interface':'composition',
-                'accepted_compositions':['harness','model+harness'],
-                'required_features':['context/per-turn','memory/none','json-output'],
-                'allowed_localities':['local'] if handoff['contract']['locality']=='local' else ['local','cloud'],
-                'tools':'none','checks':'packaged-before-and-after','evidence_scope':'composed-system'}
-            m['interfaces'].append({'name':'composition','kind':'command','task':'composition','audience':'lifecycle'})
-            with (stage/'pixi.toml').open('a') as f:
-                f.write('\n[tasks.composition]\ncmd = "python scripts/context_bridge.py"\n')
+            if kind == 'context':
+                for req in m.get('requires',[]):req['locality']=handoff['contract']['locality']
+                m['evaluation']['fixtures']=handoff['fixture_paths']
+                # Opt the built context into the same explicitly declared bridge.
+                (stage/'scripts').mkdir(exist_ok=True)
+                shutil.copyfile(HERE/'bridges/context_bridge.py',stage/'scripts/context_bridge.py')
+                m.setdefault('extensions',{})['workbench_composition']={
+                    'contract':'openteams/context-composition [0.1-draft]','bridge_interface':'composition',
+                    'accepted_compositions':['harness','model+harness'],
+                    'required_features':['context/per-turn','memory/none','json-output'],
+                    'allowed_localities':['local'] if handoff['contract']['locality']=='local' else ['local','cloud'],
+                    'tools':'none','checks':'packaged-before-and-after','evidence_scope':'composed-system'}
+                m['interfaces'].append({'name':'composition','kind':'command','task':'composition','audience':'lifecycle'})
+                with (stage/'pixi.toml').open('a') as f:
+                    f.write('\n[tasks.composition]\ncmd = "python scripts/context_bridge.py"\n')
             (stage/'cog.yaml').write_text(yaml.safe_dump(m,sort_keys=False))
             # The checker is a declared Smith operation; generated Python is not run here.
             check=self.call('cog-smith','check',[stage,'--envelope'])
@@ -421,7 +458,7 @@ class Suite:
             except (ValueError,KeyError):continue
         return values
 
-    def evaluate(self, root, author_request, author_envelope, plan_envelope, ref):
+    def evaluate(self, root, author_request, author_envelope, plan_envelope, ref=None):
         root=self.root(root)
         authored=clean(author_envelope);plan=clean(plan_envelope)
         require(author_envelope['cog']=={'id':'openteams/cog-author','version':'0.1.0'} and
@@ -429,35 +466,68 @@ class Suite:
         validated=self.bridge('cog-author','finish',{'bundle':author_request,'result':authored,'provenance':{'source':'evaluation-preflight'}})
         clean(validated)
         require(authored['classification']=='authored', 'Evaluation requires a complete authored candidate.')
+        snapshot=self.source_snapshot(author_request,author_envelope)
+        authored={**authored,'contract':snapshot['contract'],'files':snapshot['files']}
         for row in authored['files']:
             path=self.file(root,row['path'])
             require(path.is_file() and path.read_text()==row['content'], 'Packaged source no longer matches the evaluated candidate.')
         bundle={'operation':'plan','contract':authored['contract'],'files':authored['files'],'evidence':[]}
         clean(self.bridge('cog-build-evaluator','finish',{'bundle':bundle,'result':plan,'provenance':{'source':'evaluation-plan-preflight'}}))
         require(plan['classification']=='planned','Expected an evaluation plan.')
-        composition=self.compose(root,ref)
+        code=authored['contract'].get('kind','context')=='code'
+        manifest=self.manifest(root)
+        require(manifest.get('kind') == ('code' if code else 'context'), 'Candidate kind differs from the contract.')
+        if code:
+            require(not manifest.get('reaches') and not manifest.get('requires'), 'Code evaluation currently supports pure Cogs only.')
+            tasks=[x['task'] for x in manifest['interfaces'] if x.get('audience')=='usage' and x.get('default')]
+            require(len(tasks)==1, 'Code candidate requires one default declared usage task.')
+        else:
+            require(ref is not None, 'Context evaluation requires a binding.')
+        composition=None if code else self.compose(root,ref)
+        package_sha=package_digest(root)
         candidate=digest({'contract':authored['contract'],'files':sorted(authored['files'],key=lambda x:x['path'])})
         evidence=[]
         for case in plan['test_cases']:
+            require(package_digest(root)==package_sha, 'Candidate package changed during evaluation.')
+            observed=False
             try:
-                result=self.invoke(composition,case['input'])
+                if code:
+                    temp,files=self.documents({'bundle':case['input']})
+                    with temp: raw=self.call(root,tasks[0],['--bundle',files['bundle']],expect_json=False,stdout_limit=None)
+                    result=json.loads(raw['stdout'])
+                    require(isinstance(result,dict) and result.get('envelope')==1 and
+                            result.get('cog')=={'id':manifest['id'],'version':str(manifest['version'])} and
+                            isinstance(result.get('ok'),bool) and isinstance(result.get('problems'),list) and
+                            'error' in result and 'payload' in result,
+                            'Native case did not return the candidate envelope.')
+                    require(raw['exit_code']==0 or result['ok'] is False, 'Native exit status contradicts its envelope.')
+                    observed=True
+                else:
+                    result=self.invoke(composition,case['input'])
             except ValueError as exc:
-                result={'envelope':1,'cog':composition['consumer'],'task':'ask','ok':False,'payload':None,
+                result={'envelope':1,'cog':{'id':manifest['id'],'version':str(manifest['version'])},'task':tasks[0] if code else 'ask','ok':False,'payload':None,
                         'error':{'code':'case-invocation-failed','detail':str(exc)},
                         'problems':[{'check':'case-invocation-failed','detail':str(exc),'severity':'error'}],
-                        'binding':{'composition':composition,'evidence_scope':'composed-system'}}
-                self.journal('suite-case-failed',case_id=case['id'],consumer=composition['consumer'])
+                        'binding':{'composition':composition,'evidence_scope':'native-code' if code else 'composed-system'}}
+                self.journal('suite-case-failed',case_id=case['id'],consumer={'id':manifest['id'],'version':str(manifest['version'])})
+            require(package_digest(root)==package_sha, 'Candidate package changed during evaluation.')
             # Execution status is bounded to envelope/check completion. The review
             # Cog still assesses expected behavior; this never grants acceptance.
             status='passed' if result['ok'] and not result['problems'] and not result['error'] else 'failed'
+            if code:
+                # Negative cases may correctly return refusal or problem envelopes.
+                # This status certifies observation only; review must judge behavior.
+                status='passed' if observed else 'failed'
+            scope=('Native invocation returned an identity-checked envelope only. Errors and problems are observations, not accepted behavior; compare them with expected_behavior.'
+                   if code else 'Envelope and packaged checks only; criterion acceptance remains for review.')
             text=json.dumps({'case_id':case['id'],'input':case['input'],'expected_behavior':case['expected_behavior'],
-                             'observed_envelope':result,'execution_status_scope':'Envelope and packaged checks only; criterion acceptance remains for review.'},ensure_ascii=False)
+                             'observed_envelope':result,'package_sha256':package_sha,'execution_status_scope':scope},ensure_ascii=False)
             for criterion in case['criterion_ids']:
                 evidence.append({'id':case['id']+':'+criterion,'criterion_id':criterion,'candidate_sha256':candidate,
                                  'kind':'execution','status':status,'text':text})
         review={**bundle,'operation':'review','evidence':evidence}
         self.bridge('cog-build-evaluator','prepare',{'bundle':review})
-        value={'status':'executed-awaiting-independent-review','evidence_scope':'composed-system','review_request':review}
+        value={'status':'executed-awaiting-independent-review','package_sha256':package_sha,'evidence_scope':'native-code' if code else 'composed-system','review_request':review}
         path=self.save('evaluations',value)
         self.journal('suite-evaluation-cases',path=str(root),case_count=len(plan['test_cases']),record_path=path)
         return {'record_path':path,**value}

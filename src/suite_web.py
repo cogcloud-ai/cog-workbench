@@ -22,7 +22,7 @@ def local_host(handler):
 
 def start(suite, body):
     action=body.get('action')
-    require_actions={'bind','invoke','handoff','package','verify','revoke','evaluate','gateway'}
+    require_actions={'bind','invoke','handoff','package','snapshot','verify','revoke','evaluate','gateway'}
     if action not in require_actions:raise ValueError('Unknown suite action.')
     ident=str(uuid.uuid4())
     with LOCK:JOBS[ident]={'status':'working','action':action}
@@ -38,12 +38,13 @@ def start(suite, body):
                 port=urlsplit(entry['binding']['configuration']['gateway_base_url']).port
                 # Fixed host-owned state path and validated integer port; no user command.
                 result=MANAGER.start(entry['path'],'serve',extra_args='--state-dir '+shlex.quote(entry['host_state'])+' --port '+str(port))
-            elif action=='evaluate':result=suite.evaluate(body['path'],body['author_request'],body['author_envelope'],body['plan_envelope'],body['binding'])
+            elif action=='evaluate':result=suite.evaluate(body['path'],body['author_request'],body['author_envelope'],body['plan_envelope'],body.get('binding'))
             elif action=='invoke':
                 composition=suite.compose(body['context'],body['binding'])
                 result=suite.invoke(composition,body['bundle'])
             elif action=='handoff':result=suite.handoff(body['request'],body['envelope'])
             elif action=='package':result=suite.package(body['request'],body['envelope'],body['destination'])
+            elif action=='snapshot':result=suite.source_snapshot(body['request'],body['envelope'])
             else:result=suite.verify(body['path'],body['operation'])
             path=suite.save('jobs',{'action':action,'result':result})
             with LOCK:JOBS[ident]={'status':'done','result':result,'record_path':path}

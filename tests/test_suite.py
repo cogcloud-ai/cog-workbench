@@ -115,3 +115,93 @@ class SuiteTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.suite.evaluate(target,request,author,plan,ref)
 
 if __name__=='__main__':unittest.main()
+
+class CodeSuiteTests(unittest.TestCase):
+    def test_native_code_build_and_evidence(self):
+        with tempfile.TemporaryDirectory(prefix='.suite-code-',dir=ROOT) as folder:
+            suite=Suite(ROOT,Path(folder)/'state',journal=lambda x:None)
+            request=json.loads((ROOT/'cog-author/examples/code-author-bundle.json').read_text())
+            payload=json.loads((ROOT/'cog-author/examples/code-authored-payload.json').read_text())
+            envelope={'envelope':1,'ok':True,'error':None,'problems':[],'cog':{'id':'openteams/cog-author','version':'0.1.0'},'payload':payload,'binding':None}
+            import hashlib
+            contract=payload['contract']
+            request['contract_sha256']=digest(contract)
+            payload['contract']=None
+            payload['contract_sha256']=request['contract_sha256']
+            row=next(f for f in payload['files'] if f['path']=='context/input-schema.json')
+            content=row.pop('content');sha=hashlib.sha256(content.encode()).hexdigest()
+            request['materials']=[{'path':'schema.json','content':content,'sha256':sha}]
+            row.update(material_ref='schema.json',material_sha256=sha)
+            expanded=suite.source_snapshot(request,envelope)
+            self.assertEqual(expanded['contract'],contract)
+            self.assertTrue(all('content' in f for f in expanded['files']))
+            target=Path(folder)/request['identity']['name']
+            suite.package(request,envelope,target)
+            manifest=suite.manifest(target)
+            self.assertEqual(manifest['kind'],'code')
+            self.assertEqual(manifest['requires'],[])
+            self.assertNotIn('workbench_composition',manifest.get('extensions',{}))
+            self.assertEqual(suite.verify(target,'test')['exit_code'],0)
+            plan=json.loads((ROOT/'cog-build-evaluator/context/output-example.json').read_text())
+            for case in plan['test_cases']:
+                case['criterion_ids']=['length'];case['expected_behavior']='Return length of notes.'
+            plan['assessments']=[{'criterion_id':'length','status':'not_tested','rationale':'Not executed.','evidence_ids':[],'evidence_quote':''}]
+            plan_env={**envelope,'cog':{'id':'openteams/cog-build-evaluator','version':'0.1.0'},'payload':plan}
+            result=suite.evaluate(target,request,envelope,plan_env)
+            self.assertEqual(result['evidence_scope'],'native-code')
+            rows=result['review_request']['evidence'];self.assertEqual(len(rows),4)
+            for row in rows:
+                observed=json.loads(row['text'])['observed_envelope']
+                self.assertEqual(observed['binding']['kind'],'code')
+                self.assertEqual(observed['payload']['length'],len(json.loads(row['text'])['input']['notes']))
+            original_call=suite.call
+            def warned(root,task,args=(),**kwargs):
+                value=original_call(root,task,args,**kwargs)
+                if task=='run':
+                    observed=json.loads(value['stdout'])
+                    observed['problems']=[{'check':'expected-warning','detail':'Must be judged by evaluator.','severity':'warn'}]
+                    value['stdout']=json.dumps(observed)
+                return value
+            with patch.object(suite,'call',side_effect=warned):
+                warning_result=suite.evaluate(target,request,envelope,plan_env)
+            row=warning_result['review_request']['evidence'][0]
+            self.assertEqual(row['status'],'passed')  # observation only, not acceptance
+            text=json.loads(row['text'])
+            self.assertTrue(text['observed_envelope']['problems'])
+            self.assertIn('not accepted behavior',text['execution_status_scope'])
+            (target/'src/task_logic.py').write_text('# tampered')
+            with self.assertRaisesRegex(ValueError,'no longer matches'):
+                suite.evaluate(target,request,envelope,plan_env)
+
+    def test_code_brief_handoff_preserves_kind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
+            request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
+            payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
+            payload['cog_briefs'][0]['cog_kind']='code'
+            env={'envelope':1,'ok':True,'error':None,'problems':[],'cog':{'id':'openteams/cog-op-designer','version':'0.1.0'},'payload':payload,'binding':None}
+            result=suite.handoff(request,env)
+            self.assertEqual(result['requests'][0]['bundle']['kind'],'code')
+            suite.bridge('cog-author','prepare',{'bundle':result['requests'][0]['bundle']})
+
+    def test_legacy_unbound_code_choice_is_not_a_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
+            request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
+            payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
+            for step in payload['steps']:
+                if step['choice']['kind']=='new':
+                    step['choice'].update(kind='code',brief_id=None)
+            payload['cog_briefs']=[]
+            env={'envelope':1,'ok':True,'error':None,'problems':[],'cog':{'id':'openteams/cog-op-designer','version':'0.1.0'},'payload':payload,'binding':None}
+            with self.assertRaisesRegex(ValueError,'Legacy code choices'):
+                suite.handoff(request,env)
+
+    def test_native_capture_can_preserve_large_envelopes(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
+            body=json.dumps({'payload':{'text':'x'*40000}})
+            with patch('workbench_suite.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=body,stderr='')):
+                result=suite.call('cog-author','ask',expect_json=False,stdout_limit=None)
+            self.assertEqual(json.loads(result['stdout'])['payload']['text'],'x'*40000)

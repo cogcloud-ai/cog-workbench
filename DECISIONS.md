@@ -428,3 +428,123 @@ The bounded repair retains direct invocation cases; invalid-input, output-mutati
 capacity and side-effect instrumentation need separate execution evidence. This
 means a correct candidate may still receive insufficient_evidence, which is more
 accurate than an unsupported pass or a false failure.
+
+## 2026-09-21 — build pure code Cogs through the suite
+
+The merge-findings replay must exercise designer → author → Smith → evaluator.
+New briefs carry optional cog_kind; absent means legacy context. Procurement
+stays existing/new, independent of implementation kind. Legacy unbound code
+choices remain readable proposals but handoff refuses them with a redesign hint.
+This preserves old context artifacts without pretending old code prose is a brief.
+
+Accepted contracts and identities carry kind. Smith receives its existing
+--kind flag; its compiler and shared runtime need no behavior changes. Workbench
+transfers the authored snapshot and installs the composition bridge only for
+context Cogs. Pure code evaluation invokes the declared default usage task and
+records package identity alongside candidate-bound case evidence. Reaching code
+Cogs are refused by this evaluation path until a grant-aware host contract exists.
+
+Alternatives: hand-build this candidate (would repeat the drift); require a model
+binding for code (misstates runtime identity); add model judgment to Smith (breaks
+its deterministic role); support all external effects now (unnecessary for this
+first vertical slice). The bounded extension retains trusted local code execution
+and does not claim sandboxing, autonomous acceptance or general Op management.
+
+The first full merge-findings source request timed out at 600 seconds through
+both Claude and ChatGPT. Returning accepted schemas/contract/fixtures repeatedly
+is unnecessary model work and invites transcription errors. The author now
+supports explicit SHA-256 references to the accepted contract and supplied JSON
+materials; executable code and tests must still be authored. Its exporter expands
+and validates the complete snapshot. Workbench's snapshot operation obtains that
+canonical evaluator request through the declared exporter. Alternatives considered:
+lengthening every provider deadline (does not address duplication), hand-authoring
+the candidate (bypasses the pipeline), or unverified file references (breaks source
+identity). Hash mismatch, ambiguous materials, and implementation-code references
+are refused. Evidence fingerprints always cover expanded content, never just refs.
+
+Native case execution now preserves full stdout envelopes rather than using the
+30,000-character display-log tail. The largest reference case exposed truncated
+JSON masquerading as an invocation failure. Diagnostic logs remain capped; native
+structured evidence retains the complete result. Alternative: reject large valid
+results, which would constrain the candidate contract without a declared limit.
+
+Native evidence marks an identity-checked envelope as observed even when it carries
+an expected refusal or warning. Its explicit scope requires the evaluator to judge
+actual behavior; it does not grant criterion acceptance. The evaluator's complete
+case-category/criterion coverage rule applies to planning. Reviews may propose only
+targeted reproducers, while full assessment and execution-evidence rules remain.
+Requiring a repeated full plan at review rejected a useful live revise verdict.
+
+The [worked build report](docs/merge-findings-pipeline-build-2026-09-21.md) records
+the actual candidate, repaired test entry point, and documented reference divergence.
+
+## 2026-09-21 — the builder lifecycle belongs to an Op
+
+Trent clarified that the product is `op-cog-builder`, taking work through the
+multi-Cog pipeline. Workbench remains its client and invocation environment.
+The [implementation plan](../planning/current/cog-builder-op-plan-2026-09-21.md)
+defines the lifecycle and milestones. Smith already maintains shared Op machinery
+0.6.6; `op-builder-smoke` verifies native execution, mapped handoffs, Track,
+fail-stop and resume against the new code candidate.
+
+Decision: reuse that machinery rather than add a Workbench-only executor or put
+the whole build sequence into a code Cog. Existing suite helpers remain useful
+until reusable build/verification request seams replace manual coordination.
+Tradeoff: provider composition, artifact acceptance, and multi-step revision
+cycles require explicit shared contracts; the existing change-list human Gate
+and same-step repeats do not already implement them. No executable builder spec
+is claimed before those dependencies are available.
+
+## 2026-09-21 — first executable single-candidate builder
+
+`op-cog-builder` now composes author → materialize → plan → verify → review
+through shared Op machinery 0.6.6. It starts from an accepted pure-code contract,
+stops after one review, and always labels acceptance as not granted. A successful
+Op completion means the workflow ran; the evaluator's classification remains a
+separate output. Automatic revisions and general artifact approval are deferred.
+
+The provider seam uses opt-in `ask-composed` usage tasks on author/evaluator,
+vendored from bridges/composed_usage.py. Workbench activates a pinned composition
+in ignored `.op-composition.json`, which the Op runtime already hashes as part
+of the consumer. The record also pins Workbench's host code. This avoids adding
+provider-specific execution paths to the shared runner. Alternatives: extend
+the runner with a second invocation protocol now, or package a proxy Cog that
+would obscure the actual consumer identity. Tradeoff: this first host adapter
+requires the sibling Workbench layout and reactivation after host/source changes.
+Task data cannot configure the binding; packaged checks still surround each turn.
+
+`cog-build-candidate` and `cog-verify-candidate` own two bounded deterministic
+jobs, using the declared local-builder-host API. Materialization preserves full
+source, refuses collisions and reconciles a completed receipt. Verification
+records actual declared tests and cases, retaining failed evidence for review.
+No worker owns the workflow or makes acceptance decisions. Host dependencies
+and trusted local execution are explicit; automatic installation and arbitrary
+commands are unsupported. Infrastructure code is hand-authored; model-generated
+candidate evidence is recorded separately.
+
+The live single-candidate Op completed after one rejected plan and one resume.
+The evaluator had proposed a schema-invalid enum despite the executable-case
+contract; its packaged checks and the Op Gate stopped execution. The prompt now
+distinguishes schema-invalid negative tests (separate declared-test evidence)
+from schema-valid semantic violations. Reactivation and native Op resume retained
+the passed author/materialization work. Final review passed all 14 criteria;
+the [qualification record](../op-cog-builder/docs/implementation-2026-09-21.md)
+retains the rejected plan, actual observations, and compatibility limitations.
+
+## 2026-09-22: Builder-suite licensing
+
+With OpenTeams authorization, use Apache-2.0 for the builder suite, including
+Workbench. Compared with retaining BSD-3-Clause, this aligns the suite and
+adds explicit contributor patent terms at the cost of additional notice
+obligations. Preserve third-party terms and historical BSD releases. This
+changes package identity; existing pinned compositions may require renewed
+admission and activation.
+
+## 2026-09-23: Public preview and reproducible setup
+
+Publish the builder suite using explicit sibling checkouts and model-free CI.
+A central manifest and setup guide replace private-workspace orientation for
+new contributors. Keep existing declared operations and the Op-owned lifecycle;
+registry installation and sandboxing remain separately tracked work. Preserve
+meaningful machinery history instead of a blanket squash, because provenance
+records refer to those commits. Local run records and bindings remain ignored.
