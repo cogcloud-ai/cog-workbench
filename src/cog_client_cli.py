@@ -165,7 +165,7 @@ def cmd_health(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="cog-client")
+    ap = argparse.ArgumentParser(prog="cog-workbench")
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("show");  p.add_argument("path"); p.add_argument("--json", action="store_true"); p.set_defaults(fn=cmd_show)
     p = sub.add_parser("ask");   p.add_argument("path"); p.add_argument("--bundle", required=True); p.add_argument("--json", action="store_true"); p.set_defaults(fn=cmd_ask)

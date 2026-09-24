@@ -333,7 +333,7 @@ def operations(pkg):
 
 
 SKIP_DIRS = {".git", ".pixi", "node_modules", "__pycache__", ".venv", "venv",
-             "_to_delete", "_xfer2", ".cache", "var", "overlays"}
+             ".cache", "var", "overlays"}
 
 
 def browse(path, scan_depth=3, max_visits=2000):

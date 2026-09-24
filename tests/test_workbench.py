@@ -142,7 +142,7 @@ class TestBrowse(unittest.TestCase):
         (root / "b" / "deep" / "cog.yaml").write_text("id: openteams/cog-b\n")
         (root / ".hidden").mkdir()
         (root / ".hidden" / "cog.yaml").write_text("id: nope\n")
-        (root / "_to_delete").mkdir()
+        (root / "node_modules").mkdir()
         (root / "plain").mkdir()
         return root
 
