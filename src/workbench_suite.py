@@ -269,7 +269,13 @@ class Suite:
         ext=(manifest.get('extensions') or {}).get('workbench_composition')
         require(ext is not None, 'Context does not declare external composition support.')
         entry=self.load(ref); b=entry['binding']
-        req={'capability':'agentic-harness/chat','accepted_compositions':ext['accepted_compositions'],
+        # The consumer names the capability it composes with; agentic chat is the
+        # default for context Cogs that predate the declaration. Decision Cogs
+        # declare system-one/decisions. Composition always runs as a harness turn.
+        capability=ext.get('capability','agentic-harness/chat')
+        require(isinstance(capability,str) and capability, 'Composition capability must be a non-empty string.')
+        require(b['invocation']['protocol']=='cog-harness-turn-command-v1', 'Only harness-turn bindings can be composed with a context Cog.')
+        req={'capability':capability,'accepted_compositions':ext['accepted_compositions'],
              'features':ext['required_features'],'allowed_localities':ext['allowed_localities'],'model_id':None,
              'evidence_level':'declaration','identity_verified':False,'revision_pinned':False}
         self.compatible(b,req)

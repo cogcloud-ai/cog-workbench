@@ -579,3 +579,45 @@ The former workspace-dependent tests now construct fixtures or use public
 cog-author. Contributor instructions use supported platforms and each
 contributor's own Git identity. Package source remains in independent repositories;
 suite-level manifest and boundary checks prevent undeclared local dependencies.
+
+## System One decisions compose as harness turns (2026-09-24)
+
+**Gap.** `compose()` assumed every context Cog wants `agentic-harness/chat`.
+Decision Cogs (cog-smith's `decision` class) instead need typed, probabilistic
+answers to declared questions — TypeSafe's System One protocol — from either
+TypeSafe's Jev (cog-typesafe) or an ordinary LLM through TypeSafe's System One
+adapter (cog-system-one-adapter).
+
+**Decision.** A context Cog's `workbench_composition` extension may declare
+`capability`; it defaults to `agentic-harness/chat` so existing consumers are
+unchanged. Decision Cogs declare `system-one/decisions`. `compose()` matches
+the binding against that capability and now also requires the binding to be
+invoked as a harness turn (`cog-harness-turn-command-v1`), so a raw model
+binding can never be composed directly. The turn's `task` is a System One task
+(`state` + typed `questions`, `openteams/system-one-turn [0.1-draft]`), and
+its `result` is the typed answers; admission, composition records, revocation
+checks, bridges and provenance are the existing machinery, unchanged.
+cog-typesafe is `model+harness` (TypeSafe serves model and protocol together)
+and is admitted by the existing host path with declaration evidence;
+cog-system-one-adapter is a `harness` over a separately admitted
+OpenAI-compatible model, like cog-turn-harness, and inherits its locality.
+Studio fills System One bind requests (question-type features, a versioned
+Jev ID and `env:TYPESAFE_API_KEY`).
+
+**Alternatives considered.** (a) A new invocation protocol and a `model`
+composition for Jev — rejected for now: the vendored satisfier-binding draft
+ties `model` to `openai-chat-completions-v1`, and changing a contract every
+provider vendors is a profile decision, not a Workbench one. (b) Wrapping Jev
+behind an OpenAI-compatible chat endpoint so existing context Cogs could use it
+— rejected: it discards the typed answers, probabilities and confidence that
+are the reason to use it. (c) A separate `invoke_system_one()` path in
+Workbench — rejected: the harness-turn path already carries an arbitrary task
+and result with full provenance, and a second path would duplicate admission
+and revocation checks.
+
+**Tradeoffs.** `model+harness` bindings are limited to composed-system
+evidence, so Jev results cannot yet be bare-model evaluation evidence. The
+System One task travels inside the draft `harness_turn_request.task` object;
+if the profile later names a System One protocol, only the providers and this
+section change. Adapter answers have System One's shape but not its
+calibration; every result records `answer_source` so Gates can tell them apart.
