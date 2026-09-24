@@ -15,8 +15,8 @@ half-read manifest, since a manifest with silently missing declarations is
 worse than no manifest. Reading `[tool.cog]` needs a real TOML parser
 (Python 3.11+).
 
-Same portability class as the jsonschema Draft202012→Draft7 fallback in the
-forge Cogs (SPEC-NOTES §14): prefer the real library, degrade honestly.
+Same portability class as the jsonschema Draft202012→Draft7 fallback used by
+the original frozen Cogs: prefer the real library, degrade honestly.
 """
 import re
 

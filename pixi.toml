@@ -12,22 +12,22 @@ pyyaml = "*"
 
 [tasks]
 # Inspector card + affordances for any Cog package:
-#   pixi run show -- ../cog-forge/cog-release-notes
+#   pixi run show -- <path-to-a-cog-package>
 show = "python src/cog_client_cli.py show"
 
 # Generic invocation of a task-shaped Cog through its declared entry point:
-#   pixi run ask -- ../cog-forge/cog-release-notes --bundle bundle.json
+#   pixi run ask -- <path-to-a-cog-package> --bundle bundle.json
 ask = "python src/cog_client_cli.py ask"
 
 # Client-held-thread chat against an openai-compatible entry point:
-#   pixi run chat -- ../cog-demo/cog-qwen3b
+#   pixi run chat -- <path-to-a-model-cog-package>
 chat = "python src/cog_client_cli.py chat"
 
 # Probe every declared health surface:
 health = "python src/cog_client_cli.py health"
 
 # The web UI (loopback only):
-#   pixi run serve -- --path ../cog-forge/cog-release-notes
+#   pixi run serve -- --path <path-to-a-cog-package>
 serve = "python src/cog_workbench_web.py"
 
 # Model-free deterministic tests.

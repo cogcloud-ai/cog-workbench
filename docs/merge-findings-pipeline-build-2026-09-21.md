@@ -1,9 +1,10 @@
 # Merge Findings: fresh code Cog through the builder pipeline
 
-The local candidate is [`cog-merge-findings-candidate`](../../cog-merge-findings-candidate/COG.md).
+The candidate is [`cog-merge-findings-candidate`](https://github.com/cogcloud-ai/cog-merge-findings-candidate).
 It was designed and authored by the builder Cogs, packaged by Smith, and tested
-through Workbench. The existing `cog-merge-findings` remains unchanged at
-`398c1576225c1f27cd842d9837701fe2439affce`. This is a candidate build, not a
+through Workbench. The original merge Cog (an internal package, not distributed)
+remains unchanged at `398c1576225c1f27cd842d9837701fe2439affce` and is the
+"reference" compared against below. This is a candidate build, not a
 replacement of the reference or a publication decision.
 
 The final live evaluator review returned **pass on all 14 criteria**, with no
@@ -24,7 +25,7 @@ surrounding Op's Gates; independent Guards can assess system requirements.
 The implementation has no model dependency, external reaches, or persistent
 memory. The code-only designation makes that absence explicit. The reasoning
 happened while defining and building the rules; runtime work is deterministic.
-See [Smith's code-Cog guidance](../../cog-smith/BUILDING_COGS.md).
+See [Smith's code-Cog guidance](https://github.com/cogcloud-ai/cog-smith/blob/main/BUILDING_COGS.md).
 
 ## What actually ran
 
@@ -65,7 +66,7 @@ were inserted into the candidate.
 | Final live evaluator review | All 14 criteria pass; no findings; checked envelope has no problems |
 | Portable shared fixtures against both implementations | 5/5 normalized matches |
 | Captured reference cases | 51/54 normalized exact matches; 54/54 relationship/provenance matches excluding IDs and row order |
-| Reference's own existing suite | 85/86 pass; existing compose-proposals fixture is stale against the current consumer schema |
+| Reference's own existing suite | 85/86 pass; one existing fixture for a downstream consumer Cog is stale against that consumer's current schema |
 | Builder component tests | Designer 11, author 23, evaluator 21, Workbench 63 pass |
 | Provider runtime suites | 105 tests per provider package; ChatGPT and Claude each have one expected skip |
 
@@ -128,8 +129,8 @@ pixi run test
 pixi run run -- --bundle examples/sample-bundle.json
 ```
 
-The complete local build trail is in `cog-workbench/var/merge-findings-build/`
-(ignored by Git). Principal records:
+The complete local build trail is in Workbench's local `var/merge-findings-build/`
+(ignored by Git, not distributed). Principal records:
 
 - `designer-result.json`, `designer-handoff.json`, and `contract-decision-v2.json`;
 - `author-request-v4.json` / `author-result-v4.json` for first authored source;

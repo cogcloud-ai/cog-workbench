@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""cog-client CLI — a generic consumer of what Cogs declare.
+"""Cog client CLI — a generic consumer of what Cogs declare.
 
     pixi run show   -- <path-to-cog>            # inspector card + affordances
     pixi run ask    -- <path> --bundle f.json   # invoke the task entry point
@@ -8,7 +8,7 @@
 
 No Cog-specific code: everything rendered or invoked comes from the package's
 own declarations. Where the portable contract forced a guess, the output says
-so ("gap:") — those lines are GAPS.md, live.
+so ("gap:") — those lines are the original client's gap record, live.
 """
 import argparse
 import json

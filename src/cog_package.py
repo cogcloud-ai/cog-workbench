@@ -136,8 +136,9 @@ def affordances(pkg):
     """Derive interaction affordances from DECLARED parts only.
 
     Each affordance carries a `gap` field when the derivation had to guess —
-    those notes are the raw material for GAPS.md, the concrete record of where
-    the portable contract was not enough for a generic client.
+    those notes are the raw material for the gap scorecard in DECISIONS.md,
+    the concrete record of where the portable contract was not enough for a
+    generic client.
     """
     m = pkg["manifest"]
     interfaces = m.get("interfaces") or []

@@ -215,12 +215,14 @@ class TestEnvelopeInterpretation(unittest.TestCase):
 
 
 class TestRealForgePackages(unittest.TestCase):
-    """The client must understand the actual packages in this workspace."""
+    """Optional: exercises the legacy "forge" Cogs (internal packages, not part
+    of the suite) when a checkout happens to sit beside this repo; skipped
+    otherwise."""
     FORGE = Path(__file__).resolve().parent.parent.parent / "cog-forge"
 
     def test_release_notes_card(self):
         if not (self.FORGE / "cog-release-notes" / "cog.yaml").exists():
-            self.skipTest("forge not present")
+            self.skipTest("optional legacy forge packages (not part of the suite) not present")
         card = cog_package.card(cog_package.load_package(self.FORGE / "cog-release-notes"))
         types = {a["type"] for a in card["affordances"]}
         self.assertIn("task", types)
@@ -229,7 +231,7 @@ class TestRealForgePackages(unittest.TestCase):
 
     def test_collab_descriptor_card(self):
         if not (self.FORGE / "cog-collab-qwen35b" / "cog.yaml").exists():
-            self.skipTest("forge not present")
+            self.skipTest("optional legacy forge packages (not part of the suite) not present")
         card = cog_package.card(cog_package.load_package(self.FORGE / "cog-collab-qwen35b"))
         chat = next(a for a in card["affordances"] if a["type"] == "chat")
         self.assertTrue(chat["address_install_time"])

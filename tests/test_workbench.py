@@ -90,7 +90,7 @@ class TestOperations(unittest.TestCase):
     def test_real_forge_cog_gets_full_chain(self):
         forge = ROOT.parent / "cog-forge" / "cog-release-notes"
         if not (forge / "cog.yaml").exists():
-            self.skipTest("forge not present")
+            self.skipTest("optional legacy forge packages (not part of the suite) not present")
         ops = cog_package.operations(cog_package.load_package(forge))
         modes = {(o["task"], o["mode"]) for o in ops if not o.get("dependency")}
         self.assertIn(("serve", "service"), modes)
@@ -114,7 +114,7 @@ class TestInputSchema(unittest.TestCase):
     def test_overlay_fills_in_for_forge_cogs(self):
         forge = ROOT.parent / "cog-forge" / "cog-ci-failure-analyst"
         if not (forge / "cog.yaml").exists():
-            self.skipTest("forge not present")
+            self.skipTest("optional legacy forge packages (not part of the suite) not present")
         s = cog_package.input_schema(cog_package.load_package(forge))
         self.assertEqual(s["source"], "overlay")
         ev = s["schema"]["properties"]["evidence"]
@@ -172,7 +172,7 @@ class TestDeclaredDerivation(unittest.TestCase):
     def test_overlay_declares_release_notes_derivation(self):
         forge = ROOT.parent / "cog-forge" / "cog-release-notes"
         if not (forge / "cog.yaml").exists():
-            self.skipTest("forge not present")
+            self.skipTest("optional legacy forge packages (not part of the suite) not present")
         ds = cog_package.derivations(cog_package.load_package(forge))
         self.assertEqual([d["id"] for d in ds], ["from-git"])
         self.assertEqual(ds[0]["task"], "bundle")

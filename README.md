@@ -6,7 +6,8 @@ and feed missing capabilities into Cog authoring, packaging and evaluation.
 See [the tool-suite guide](docs/tool-suite.md) and
 [verification status](docs/verification-2026-09-07.md).
 
-The gap-filled fork of `cog-client`: same inspector, but the client now holds
+The gap-filled fork of an earlier reference client (`cog-client` v0, an
+internal package that is not distributed): same inspector, but the client now holds
 the authority an invocation environment actually has. Point it at a Cog and it
 renders — **and runs** — what the package declares:
 
@@ -19,28 +20,30 @@ renders — **and runs** — what the package declares:
   contract (JSON Schema + a tiny `x-cog-input` vocabulary) generates the
   invoke form: dropdowns from enums, file pickers that fill evidence items
   with file content, JSON sub-editors for the genuinely complex parts.
-  Shipped as overlays for the frozen forge Cogs.
+  Shipped as overlays for the original frozen Cogs (internal packages, not
+  part of this suite).
 - **Parameter semantics + declared derivation (`x-cog-param`).** Fields can
   say what they *are* (a git repo, a ref of that repo) and the whole form can
   declare itself producible by one of the Cog's own tasks: for
   cog-release-notes, browse to a local clone, pick from/to refs from
   dropdowns, and one button runs the declared `bundle` task and fills the
-  form. Proposal doc: `output/cog-param-protocol.md` in coglab.
+  form. The full proposal is an internal design note (not distributed);
+  `DECISIONS.md` §7 records what runs here.
 - **Chat that works.** Same client-held-thread surface, plus a pre-flight
   probe that tells you the model isn't serving and takes you to the button
   that starts it.
 - **An activity journal** — the minimal §6.6 audit surround: every start,
   stop, invocation, and chat turn.
 
-`cog-client` stays as the demo of *today's* portable contract; this repo is
-the experiment in what the contract should become. Every design call and its
+The original client stays as the demo of *today's* portable contract; this
+repo is the experiment in what the contract should become. Every design call and its
 tradeoffs are written down in [`DECISIONS.md`](DECISIONS.md).
 
 ## Run it
 
 ```bash
 pixi install
-pixi run serve -- --path ../cog-forge/cog-ci-failure-analyst
+pixi run serve -- --path <path-to-a-cog-package>
 # open http://127.0.0.1:8071
 ```
 
@@ -53,7 +56,7 @@ the right order, narrating as it goes. (The individual Start/Run/Stop buttons
 are still there, and a service running on a binding older than `model.json`
 gets an inline warning and a Restart button.) Then use **Run** (pick a log
 file, pick the workflow) or **Chat**. CLI (`show`/`ask`/`chat`/`health`) is
-unchanged from cog-client.
+unchanged from the original client.
 
 Loopback only, no auth, and the server will only run tasks derived from the
 package's own declarations — never a free-form command. `pixi run test` runs

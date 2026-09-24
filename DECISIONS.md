@@ -1,7 +1,8 @@
 # DECISIONS — how each gap was filled, and what was traded away
 
-cog-client v0 stopped exactly where the portable contract stopped, and its
-GAPS.md lists the nine places it had to guess. This workbench is the
+The earlier reference client (cog-client v0, an internal package that is not
+distributed) stopped exactly where the portable contract stopped, and its gap
+record lists the nine places it had to guess. This workbench is the
 experiment Trent asked for: *decide what would work, build it, and write the
 decisions down.* Each section below names the gap, the chosen design, the
 alternatives considered, and the tradeoffs. Everything here is a **proposal
@@ -10,7 +11,8 @@ any of it cheaply because each mechanism is isolated.
 
 ## 0. Ground rule: the frozen artifacts stay frozen
 
-The forge Cogs passed an engineering-gates verdict and cog-client v0 is the
+The original frozen Cogs (the "forge" Cogs, internal packages that are not
+distributed) passed an engineering-gates verdict and cog-client v0 is the
 "what works under today's constraints" demo. Neither is modified. New
 declarations the experiment needs (input schemas) ship as **overlays** in this
 repo (`overlays/<cog-id>/input-schema.json`), and the client prefers a real
@@ -66,7 +68,8 @@ operations**: each locally-sourced declared satisfier becomes a "start
 dependency" button wired to *that* Cog's default interface task. The full
 chain (start model → resolve → start web-api → invoke/chat) is four buttons.
 
-Command resolution is two-tier, same rule as cog-forge's checks: if the Cog's
+Command resolution is two-tier, the same rule the frozen Cogs' own check
+scripts use: if the Cog's
 locked pixi env executes on this machine → `pixi run --frozen <task>`;
 otherwise the task string is read from pixi.toml and run on the system
 interpreter, and the UI labels which tier ran.
@@ -192,8 +195,8 @@ environment provides, not knowledge in the user's head.
 
 ## 7. x-cog-param: parameter semantics + declared derivation (prototype)
 
-Full proposal in `output/cog-param-protocol.md` (drafted for the Monday
-meeting); this section records what runs here and the calls made.
+The full proposal is an internal design note (not distributed, drafted for
+the Monday meeting); this section records what runs here and the calls made.
 
 **The gap:** the schema says a value's *shape* (string), not what it *is*
 (a git ref of the repo named in another field). Generic clients therefore
@@ -305,9 +308,11 @@ evaluator Cogs carry their own interaction machinery; portability to an external
 harness must be demonstrated, not assumed. A working Harness-only Cog and
 consumer-contract conformance fixtures are prerequisites.
 
-Starting material: the configurable-satisfier proposal in the cog-manifest-openteams repository (then `cogspec`),
-the cog-openrouter reference host and its spec findings, and the existing
-default-stack, harness-satisfier and composition-points architecture notes.
+Starting material: the configurable-satisfier proposal in the OpenTeams
+manifest-profile repository (an internal repository, not distributed),
+the cog-openrouter reference host and its spec findings, and internal
+architecture notes on the default stack, harness-as-satisfier and composition
+points (not distributed).
 
 **Alternatives and tradeoffs:** extend workbench as the existing reference client
 instead of starting another executor project. Extract a reusable execution
@@ -315,7 +320,10 @@ library only if implementation demonstrates a need. Dynamic composition adds
 admission, credential handling and provenance responsibilities beyond process
 bring-up; scope and concrete contracts require a separate implementation task.
 
-## Scorecard against GAPS.md
+## Scorecard against the original client's gap record
+
+(The nine numbered gaps below are the ones the earlier reference client, an
+internal package that is not distributed, recorded as places it had to guess.)
 
 | Gap | Status here |
 |---|---|
@@ -482,7 +490,9 @@ the actual candidate, repaired test entry point, and documented reference diverg
 
 Trent clarified that the product is `op-cog-builder`, taking work through the
 multi-Cog pipeline. Workbench remains its client and invocation environment.
-The [implementation plan](../planning/current/cog-builder-op-plan-2026-09-21.md)
+The implementation plan (an internal planning note, not distributed; the
+public roadmap is at
+https://github.com/cogcloud-ai/cog-op-builder/blob/main/docs/roadmap.md)
 defines the lifecycle and milestones. Smith already maintains shared Op machinery
 0.6.6; `op-builder-smoke` verifies native execution, mapped handoffs, Track,
 fail-stop and resume against the new code candidate.
@@ -528,7 +538,7 @@ contract; its packaged checks and the Op Gate stopped execution. The prompt now
 distinguishes schema-invalid negative tests (separate declared-test evidence)
 from schema-valid semantic violations. Reactivation and native Op resume retained
 the passed author/materialization work. Final review passed all 14 criteria;
-the [qualification record](../op-cog-builder/docs/implementation-2026-09-21.md)
+the [qualification record](https://github.com/cogcloud-ai/op-cog-builder/blob/main/docs/implementation-2026-09-21.md)
 retains the rejected plan, actual observations, and compatibility limitations.
 
 ## 2026-09-22: Builder-suite licensing

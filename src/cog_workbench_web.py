@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """cog-workbench — the gap-filled invocation environment.
 
-    pixi run serve -- --path ../cog-forge/cog-release-notes
+    pixi run serve -- --path <path-to-a-cog-package>
 
-Everything cog-client v0 did (inspect, generic invoke, chat, health), plus the
+Everything the original reference client did (inspect, generic invoke, chat,
+health), plus the
 GAPS filled by proposal:
 
   - schema-driven input forms (manifest `context.input_schema`, else overlay);

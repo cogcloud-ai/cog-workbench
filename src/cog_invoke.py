@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 
 # Keys the current de facto envelope uses around the payload. A generic client
-# should not need this list — that it does is GAPS.md item #1.
+# should not need this list — that it does is gap #1 in DECISIONS.md's scorecard.
 ENVELOPE_KEYS = {"raw", "problems", "binding", "latency_s", "error", "detail"}
 
 

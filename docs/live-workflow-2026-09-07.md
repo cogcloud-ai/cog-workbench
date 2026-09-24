@@ -34,11 +34,11 @@ assignments, or designed Op are executed.
    procedures are not executed or counted as candidate failures. The 20 evaluator
    tests and Smith checks pass; Workbench checks plan rejection before inference.
 
-Raw inputs, results, failure details, and the local test driver are retained in
-`../var/live-workflow-2026-09-07/`. Workbench's normal binding, composition, run,
-check and evaluation records remain under `../var/suite/`, and operations are
-journaled in `../var/activity.jsonl`. These local runtime artifacts are ignored
-by Git and contain no copied login credentials.
+Raw inputs, results, failure details, and the local test driver are retained
+in the Workbench's local `var/` directory. Workbench's normal binding,
+composition, run, check and evaluation records remain under `var/suite/`, and
+operations are journaled in `var/activity.jsonl`. These local runtime artifacts
+are ignored by Git, are not distributed, and contain no copied login credentials.
 
 The timeout repair passed 18 tests in each of the three provider repositories,
 the 59 Workbench tests (its loopback case required a socket-enabled invocation),
@@ -61,9 +61,9 @@ and rejected nine malformed output objects. Its evidence is bound to candidate
 `3de0af82784e53620eee4a484f4b6a9b0ee100b5f70aa20ff30a6601e99b8e28`.
 It does not attest vendor side effects or capacity limits.
 
-The resulting `cog-explicit-action-extractor` is a separate local Git repository,
-initial commit `7661821`, with installation, usage and evidence limitations in
-its README. Nothing was pushed or published. Workbench was restarted at its
+The resulting extraction Cog is a separate local Git repository (an internal
+package, not distributed), initial commit `7661821`, with installation, usage
+and evidence limitations in its README. Nothing was pushed or published. Workbench was restarted at its
 existing port 8074; the catalog shows this Cog and admitted ChatGPT revision 3.
 
 ## Review boundary
@@ -108,9 +108,8 @@ independent runtime evidence of those properties. No blanket acceptance, release
 approval or bare-model evaluation claim is made. Author and reviewer used separate
 Cog roles through the same requested model/subscription, not independent models.
 
-Final records: [summary](../var/live-workflow-2026-09-07/summary.json),
-[validated review](../var/live-workflow-2026-09-07/review-result.json),
-[case execution evidence](../var/live-workflow-2026-09-07/evaluation.json),
-[supplementary validation](../var/live-workflow-2026-09-07/boundary-check.json).
+Final records (summary, validated review, case execution evidence and
+supplementary validation JSON) are local run artifacts under `var/`, ignored by
+Git and not distributed.
 The test driver requires explicitly authorized vendor access and retained local
 state; it is a session artifact, not a new Op manager or universal executor.

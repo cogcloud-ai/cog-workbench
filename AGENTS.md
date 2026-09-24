@@ -5,15 +5,16 @@ This file is the repo-local contract for any agent or human editing here.
 
 ## What this repo is
 
-The ACTIVE experiment: cog-client v0 forked, with the portable contract's
-gaps filled *by proposal*. cog-client and cog-forge are frozen; this is
-where new ideas run. Every design change MUST be recorded in `DECISIONS.md`
+The ACTIVE experiment: a fork of the earlier reference client (cog-client
+v0, an internal package that is not distributed), with the portable
+contract's gaps filled *by proposal*. That client and the original frozen
+Cogs it inspected are not modified; this is where new ideas run. Every design change MUST be recorded in `DECISIONS.md`
 with alternatives considered and tradeoffs — that file is a meeting input,
 not documentation-after-the-fact.
 
 ## Commands
 
-- Serve: `pixi run serve -- --path ../cog-forge/cog-release-notes`
+- Serve: `pixi run serve -- --path <path-to-a-cog-package>`
   (port 8071; or plain `python3 src/cog_workbench_web.py` — the server needs
   only python + pyyaml)
 - Test: `python3 -m unittest discover -s tests` — 59 tests, model-free,
@@ -33,8 +34,9 @@ not documentation-after-the-fact.
 3. **Closed vocabulary:** `x-cog-param` types are interpreted from a fixed
    set; a Cog can never name a command to run for UI purposes. Unknown
    version or type must degrade to a plain labeled input.
-4. **Frozen deps + overlay rule:** never edit `../cog-forge` or
-   `../cog-client`. Declarations the frozen Cogs "should" have live in
+4. **Frozen deps + overlay rule:** never edit the original frozen Cogs or
+   the reference client (internal packages, not distributed). Declarations
+   the frozen Cogs "should" have live in
    `overlays/<cog-id with / → -->/input-schema.json`; a real manifest
    `context.input_schema` declaration always wins over an overlay.
 5. **Portability:** no new runtime dependencies. Keep `toml_compat`

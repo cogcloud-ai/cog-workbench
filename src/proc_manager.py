@@ -10,8 +10,8 @@ an INVOCATION ENVIRONMENT holds exactly that authority (it is the §6.6
     tasks) are runnable — never arbitrary commands;
   - commands resolve through pixi when the Cog's locked environment is usable
     on this machine, else fall back to the task string parsed from pixi.toml
-    run on system python — the same two-tier rule cog-forge's run-checks.sh
-    uses, and the UI labels which tier ran;
+    run on system python — the same two-tier rule the original frozen Cogs'
+    check scripts use, and the UI labels which tier ran;
   - one running instance per (cog, task); services get start/stop; every run
     is journaled.
 """
@@ -69,7 +69,8 @@ def _child_env():
     """Environment for child Cog processes: the workbench may itself be running
     under `pixi run serve`, which exports PIXI_* activation variables. Passing
     those through makes pixi warn about competing manifests (and is the same
-    cross-contamination class as cog-demo's activation-env finding), so they
+    cross-contamination class as an activation-env finding seen in an earlier
+    local model Cog), so they
     are scrubbed — each Cog's pixi resolves its OWN manifest from cwd."""
     return {k: v for k, v in os.environ.items() if not k.startswith("PIXI_")}
 
