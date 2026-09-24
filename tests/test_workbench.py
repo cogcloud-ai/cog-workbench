@@ -1,6 +1,7 @@
 """Workbench-specific tests: runnable operations, process management, and the
 proposed input-schema contract with overlay precedence."""
 import json
+import copy
 import sys
 import tempfile
 import time
@@ -87,17 +88,23 @@ class TestOperations(unittest.TestCase):
         # alternatives grouping key for bring-up
         self.assertEqual(dep_ops[0]["capability"], "model-endpoint/openai-compatible")
 
-    def test_real_forge_cog_gets_full_chain(self):
-        forge = ROOT.parent / "cog-forge" / "cog-release-notes"
-        if not (forge / "cog.yaml").exists():
-            self.skipTest("optional legacy forge packages (not part of the suite) not present")
-        ops = cog_package.operations(cog_package.load_package(forge))
+    def test_fixture_cog_gets_full_chain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dep = Path(tmp) / 'model'
+            dep.mkdir()
+            write_pkg(dep, dict(MANIFEST, id='example/model', kind='model', interfaces=[
+                {'name':'web-api','kind':'openai-compatible','task':'serve',
+                 'endpoint':'http://127.0.0.1:9990/v1','default':True}]))
+            root = Path(tmp) / 'consumer'
+            root.mkdir()
+            manifest = copy.deepcopy(MANIFEST)
+            manifest['requires'] = [{'capability':'model-endpoint/openai-compatible',
+                'satisfied_by':{'cog':'example/model','source':'../model'}}]
+            ops = cog_package.operations(cog_package.load_package(write_pkg(root, manifest)))
         modes = {(o["task"], o["mode"]) for o in ops if not o.get("dependency")}
         self.assertIn(("serve", "service"), modes)
         self.assertIn(("resolve", "run"), modes)
-        # both declared satisfiers (base + LoRA) become startable dependencies
-        deps = [o for o in ops if o.get("dependency")]
-        self.assertGreaterEqual(len(deps), 1)
+        self.assertTrue([o for o in ops if o.get("dependency")])
 
 
 class TestInputSchema(unittest.TestCase):
@@ -111,16 +118,14 @@ class TestInputSchema(unittest.TestCase):
         self.assertEqual(s["source"], "manifest")
         self.assertEqual(s["schema"]["properties"]["x"]["type"], "string")
 
-    def test_overlay_fills_in_for_forge_cogs(self):
-        forge = ROOT.parent / "cog-forge" / "cog-ci-failure-analyst"
-        if not (forge / "cog.yaml").exists():
-            self.skipTest("optional legacy forge packages (not part of the suite) not present")
-        s = cog_package.input_schema(cog_package.load_package(forge))
+    def test_overlay_fills_in_for_fixture(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = dict(MANIFEST, id='openteams/cog-ci-failure-analyst')
+            s = cog_package.input_schema(cog_package.load_package(write_pkg(tmp, manifest)))
         self.assertEqual(s["source"], "overlay")
         ev = s["schema"]["properties"]["evidence"]
         self.assertEqual(ev["x-cog-input"]["builder"], "file-items")
-        self.assertEqual(
-            ev["items"]["properties"]["content"]["x-cog-input"]["source"], "file")
+        self.assertEqual(ev["items"]["properties"]["content"]["x-cog-input"]["source"], "file")
 
     def test_no_schema_is_an_explicit_gap(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -170,10 +175,9 @@ class TestDeclaredDerivation(unittest.TestCase):
     """x-cog-param v1: semantics + declared derivation, guardrails intact."""
 
     def test_overlay_declares_release_notes_derivation(self):
-        forge = ROOT.parent / "cog-forge" / "cog-release-notes"
-        if not (forge / "cog.yaml").exists():
-            self.skipTest("optional legacy forge packages (not part of the suite) not present")
-        ds = cog_package.derivations(cog_package.load_package(forge))
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = dict(MANIFEST, id='openteams/cog-release-notes')
+            ds = cog_package.derivations(cog_package.load_package(write_pkg(tmp, manifest, pixi=PIXI+'\nbundle = "python bundle.py"\n')))
         self.assertEqual([d["id"] for d in ds], ["from-git"])
         self.assertEqual(ds[0]["task"], "bundle")
         self.assertEqual(ds[0]["inputs"]["from"]["repo_from"], "repo")

@@ -16,9 +16,9 @@ class SuiteTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(prefix='suite-test-');self.addCleanup(self.temp.cleanup)
         self.suite=Suite(ROOT,Path(self.temp.name)/'state',journal=lambda x:None)
-    def seed_model(self):
+    def seed_model(self, locality="cloud"):
         b=json.loads((ROOT/'cog-turn-harness/tests/model-binding.json').read_text())
-        b.update(binding_id='binding-author-model',revision=1,features=['text-generation','json-output'])
+        b.update(binding_id='binding-author-model',revision=1,features=['text-generation','json-output'],locality=locality)
         root=ROOT/'cog-openrouter'
         entry={'request':{},'binding':b,'path':str(root),'package_sha256':package_digest(root),'model_requirement':None,'host_state':None,'candidate_sha256':'test-only'}
         entry['sha256']=digest(entry);ref={'binding_id':b['binding_id'],'revision':b['revision']}
@@ -31,6 +31,29 @@ class SuiteTests(unittest.TestCase):
         self.assertIn('openteams/cog-openrouter',[x['id'] for x in rows]);self.assertNotIn('openteams/cog-chatgpt',[x['id'] for x in rows])
         rows=self.suite.select({'capability':'agentic-harness/chat','accepted_compositions':['model+harness']})
         self.assertEqual({x['id'] for x in rows},{'openteams/cog-chatgpt','openteams/cog-claude'})
+    def test_local_model_can_be_composed_without_cloud_permission(self):
+        self.seed_model(locality='local')
+        request=json.loads((ROOT/'cog-turn-harness/examples/bind-request.json').read_text())
+        request['configuration']['locality']='local'
+        request['requirement']['allowed_localities']=['local']
+        binding=self.suite.bind('cog-turn-harness',request)
+        self.assertEqual(binding['locality'],'local')
+        self.suite.compose('cog-author',{'binding_id':binding['binding_id'],'revision':1})
+        row=next(x for x in self.suite.bindings() if x['reference']['binding_id']==binding['binding_id'])
+        self.assertEqual(row['locality'],'local')
+
+    def test_harness_cannot_mislabel_cloud_model_as_local(self):
+        self.seed_model(locality='cloud')
+        request=json.loads((ROOT/'cog-turn-harness/examples/bind-request.json').read_text())
+        request['configuration']['locality']='local'
+        request['requirement']['allowed_localities']=['local']
+        with self.assertRaisesRegex(ValueError,'locality must match'):
+            self.suite.bind('cog-turn-harness',request)
+
+    def test_public_qwen_provider_is_discoverable(self):
+        rows=self.suite.select({'capability':'model-endpoint/openai-compatible','accepted_compositions':['model']})
+        self.assertIn('openteams/cog-qwen',[row['id'] for row in rows])
+
     def test_harness_requires_admitted_model(self):
         request=json.loads((ROOT/'cog-turn-harness/examples/bind-request.json').read_text())
         with self.assertRaises(ValueError):self.suite.bind('cog-turn-harness',request)

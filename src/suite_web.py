@@ -33,7 +33,7 @@ def start(suite, body):
             elif action=='gateway':
                 import shlex
                 entry=suite.load(body['binding'])
-                if not entry.get('host_state') or MANAGER is None:raise ValueError('Select an admitted OpenRouter model.')
+                if not entry.get('host_state') or MANAGER is None:raise ValueError('Select an admitted model with a supported gateway.')
                 from urllib.parse import urlsplit
                 port=urlsplit(entry['binding']['configuration']['gateway_base_url']).port
                 # Fixed host-owned state path and validated integer port; no user command.

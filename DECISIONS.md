@@ -558,3 +558,24 @@ new contributors. Keep existing declared operations and the Op-owned lifecycle;
 registry installation and sandboxing remain separately tracked work. Preserve
 meaningful machinery history instead of a blanket squash, because provenance
 records refer to those commits. Local run records and bindings remain ignored.
+
+## Public local provider and self-contained verification (2026-09-24)
+
+The suite now includes cog-qwen: Qwen3-4B Q4_K_M with an explicit, checksum-pinned
+weight download and locked llama.cpp runtime. Workbench admits its model bindings
+through a specific host adapter, then composes the separate turn harness. Native
+context manifests and generated defaults refer to that public sibling. We retain
+separate model and interaction identities rather than treating model inference
+as an agent harness. Hosted-model locality cannot be relabeled as local: the
+harness configuration, admitted dependency and requested locality must agree.
+
+Studio selects the appropriate credential references and gateway for each model
+provider. Model weights and tokens are never downloaded or manufactured by the UI.
+The local backend must be started explicitly before admission. Model artifact
+metadata participates in the package digest; ignored downloaded bytes and local
+admission records do not. Digest pins identify artifacts, not remote attestation.
+
+The former workspace-dependent tests now construct fixtures or use public
+cog-author. Contributor instructions use supported platforms and each
+contributor's own Git identity. Package source remains in independent repositories;
+suite-level manifest and boundary checks prevent undeclared local dependencies.

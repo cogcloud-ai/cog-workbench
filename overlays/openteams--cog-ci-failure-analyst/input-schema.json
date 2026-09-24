@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "CI failure bundle",
-  "description": "Input for openteams/cog-ci-failure-analyst. PROPOSED contract: this file is what the manifest would reference as context.input_schema — shipped here as a workbench overlay so the frozen forge package stays untouched.",
+  "description": "Input for openteams/cog-ci-failure-analyst. PROPOSED contract: this file is what the manifest would reference as context.input_schema — shipped as a self-contained example of the overlay format; no external package is needed to test it.",
   "type": "object",
   "required": ["repository", "commit", "evidence"],
   "properties": {

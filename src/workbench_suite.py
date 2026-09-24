@@ -43,7 +43,7 @@ def clean(envelope):
 def package_digest(root):
     root = Path(root)
     paths = []
-    for name in ('COG.md', 'cog.yaml', 'pixi.toml', 'pixi.lock', 'engine.json'):
+    for name in ('COG.md', 'cog.yaml', 'pixi.toml', 'pixi.lock', 'engine.json', 'model-artifact.json'):
         if (root/name).is_file(): paths.append(root/name)
     for name in ('src', 'scripts', 'context', 'binding', 'contracts', 'tests', 'evals', 'examples'):
         if (root/name).is_dir():
@@ -223,10 +223,12 @@ class Suite:
             if b['composition'] == 'harness':
                 require(b['model_binding'] == request['configuration']['model_binding'], 'Harness model reference mismatch.')
                 dep = self.load(b['model_binding']); self.compatible(dep['binding'], model_requirement)
+                require(b['locality'] == dep['binding']['locality'], 'Harness locality must match its admitted model.')
             host_state = None
             if b['composition'] == 'model':
-                require(card['provider']['id'] == 'openteams/cog-openrouter', 'No host adapter is installed for this model provider.')
-                host_state = str(self.state/'openrouter')
+                adapters = {'openteams/cog-openrouter': 'openrouter', 'openteams/cog-qwen': 'qwen'}
+                require(card['provider']['id'] in adapters, 'No host adapter is installed for this model provider.')
+                host_state = str(self.state/adapters[card['provider']['id']])
                 candidate_file=Path(temp.name)/'candidate.json'; candidate_file.write_text(json.dumps(candidate_env))
                 b = clean(self.call(root,'admit',['--request',files['request'],'--candidate',candidate_file,
                     '--state-dir',host_state,'--gateway-url',request['configuration']['gateway_base_url']]))
@@ -454,7 +456,7 @@ class Suite:
                 ref={'binding_id':b['binding_id'],'revision':b['revision']}
                 try:self.load(ref);status='admitted'
                 except ValueError:status='unavailable-or-changed'
-                values.append({'reference':ref,'provider':b['provider'],'composition':b['composition'],'model':b['model'],'status':status})
+                values.append({'reference':ref,'provider':b['provider'],'composition':b['composition'],'model':b['model'],'locality':b['locality'],'status':status})
             except (ValueError,KeyError):continue
         return values
 

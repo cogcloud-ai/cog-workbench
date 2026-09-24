@@ -214,25 +214,22 @@ class TestEnvelopeInterpretation(unittest.TestCase):
         self.assertEqual(cog_invoke.redact_endpoint("https://u:p@h/v1"), "https://h/v1")
 
 
-class TestRealForgePackages(unittest.TestCase):
-    """Optional: exercises the legacy "forge" Cogs (internal packages, not part
-    of the suite) when a checkout happens to sit beside this repo; skipped
-    otherwise."""
-    FORGE = Path(__file__).resolve().parent.parent.parent / "cog-forge"
-
-    def test_release_notes_card(self):
-        if not (self.FORGE / "cog-release-notes" / "cog.yaml").exists():
-            self.skipTest("optional legacy forge packages (not part of the suite) not present")
-        card = cog_package.card(cog_package.load_package(self.FORGE / "cog-release-notes"))
+class TestPortablePackages(unittest.TestCase):
+    """The public test run constructs its own complete package fixtures."""
+    def test_context_card(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_pkg(tmp, CONTEXT_COG)
+            (root / 'pixi.toml').write_text('[tasks]\nask = "python ask.py"\n')
+            card = cog_package.card(cog_package.load_package(root))
         types = {a["type"] for a in card["affordances"]}
         self.assertIn("task", types)
         self.assertIn("commands", types)
         self.assertEqual(card["kind"], "context")
 
-    def test_collab_descriptor_card(self):
-        if not (self.FORGE / "cog-collab-qwen35b" / "cog.yaml").exists():
-            self.skipTest("optional legacy forge packages (not part of the suite) not present")
-        card = cog_package.card(cog_package.load_package(self.FORGE / "cog-collab-qwen35b"))
+    def test_descriptor_card(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = write_pkg(tmp, DESCRIPTOR_COG)
+            card = cog_package.card(cog_package.load_package(root))
         chat = next(a for a in card["affordances"] if a["type"] == "chat")
         self.assertTrue(chat["address_install_time"])
 

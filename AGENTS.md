@@ -60,7 +60,7 @@ swap), labels last — a design that needs the label read is the bug.
 ## Housekeeping
 
 - `var/` and `.pixi/` are gitignored; clean `__pycache__` before commits.
-- pixi lockfiles are regenerated only on Trent's Mac (conda-forge is
-  403-blocked in sandboxes and the device VM).
-- Commits: author Trent Oliphant <trentoliphant@gmail.com>; keep the
-  Claude co-author/session trailers convention used in `git log`.
+- Generate lockfiles with Pixi on a supported platform with access to the
+  declared channels. Preserve every declared platform and verify `pixi install --locked`.
+- Commit using your own configured Git identity. Attribute collaborators
+  accurately; do not impersonate another contributor.
