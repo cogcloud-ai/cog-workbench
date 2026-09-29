@@ -462,7 +462,7 @@ class Suite:
                 ref={'binding_id':b['binding_id'],'revision':b['revision']}
                 try:self.load(ref);status='admitted'
                 except ValueError:status='unavailable-or-changed'
-                values.append({'reference':ref,'provider':b['provider'],'composition':b['composition'],'model':b['model'],'locality':b['locality'],'status':status})
+                values.append({'reference':ref,'provider':b['provider'],'composition':b['composition'],'capability':b['capability'],'model':b['model'],'locality':b['locality'],'status':status})
             except (ValueError,KeyError):continue
         return values
 

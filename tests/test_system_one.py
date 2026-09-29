@@ -46,6 +46,12 @@ class SystemOneCompositionTests(unittest.TestCase):
         rows = self.suite.select({'capability': 'agentic-harness/chat', 'accepted_compositions': ['harness']})
         self.assertNotIn('openteams/cog-system-one-adapter', {r['id'] for r in rows})
 
+    def test_binding_summaries_expose_the_admitted_capability(self):
+        binding = self.adapter_binding()
+        rows = {row['reference']['binding_id']: row for row in self.suite.bindings()}
+        self.assertEqual(rows[binding['binding_id']]['capability'], 'system-one/decisions')
+        self.assertEqual(rows['binding-model']['capability'], 'model-endpoint/openai-compatible')
+
     def test_adapter_binding_composes_and_invokes_a_decision_cog(self):
         b = self.adapter_binding()
         self.assertEqual((b['composition'], b['capability'], b['state']), ('harness', 'system-one/decisions', 'admitted'))

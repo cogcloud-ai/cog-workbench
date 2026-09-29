@@ -621,3 +621,17 @@ System One task travels inside the draft `harness_turn_request.task` object;
 if the profile later names a System One protocol, only the providers and this
 section change. Adapter answers have System One's shape but not its
 calibration; every result records `answer_source` so Gates can tell them apart.
+
+## Studio selects chat bindings for the builder (2026-09-29)
+
+The binding summary now exposes its admitted capability. Studio's design,
+authoring and evaluation controls use `agentic-harness/chat` bindings only;
+System One bindings remain available in binding details and through explicit
+decision-Cog composition. When no chat binding is available, model-backed
+builder actions stay disabled, while packaging and code-only cases remain
+available. The server still performs its own capability compatibility checks.
+
+We rejected listing all harness compositions and relying on the server error:
+a System One binding cannot satisfy the builder's chat consumers, so offering
+it creates an avoidable dead end. Inferring capability from the provider name
+was also rejected because admission already records the authoritative value.
