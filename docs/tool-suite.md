@@ -207,7 +207,7 @@ Keep suite state inside the workspace (the default `cog-workbench/var/suite` doe
 this), and move the whole workspace together. Reinstall each declared Pixi
 environment with `pixi install --locked` after relocation. Owner permissions, integrity,
 provider dependencies, package fingerprints and revocation are still checked.
-Existing absolute records work at their original location; re-admit their provider
+After this fingerprint-format upgrade, re-admit all providers with new binding revisions and reactivate consumers. Current-format absolute records work at their original location; re-admit their provider
 bindings and reactivate consumers to make them portable. Credentials remain local
 configuration and are never copied by these commands.
 
@@ -218,7 +218,7 @@ Do not mistake these fingerprints for an environment attestation or a sandbox.
 
 ### Saved builds in Studio
 
-Open `/studio`, connect an interaction provider, then use **Saved Cog builds**.
+Open `/studio`, connect an interaction provider, then use **Build a Cog with saved progress**.
 Enter a bounded brief and owner, review the default repair paths, and choose
 round/model-turn budgets. **Start saved build** activates the builder's model
 consumers and starts its native cycle. It pauses on contract acceptance before
@@ -227,7 +227,7 @@ reject; rejection requires a reason. Independent review and verification are
 shown beside the final candidate before its separate acceptance Gate.
 
 Select a saved build after reload or server restart to recover its steps,
-evidence and pending choices. **Resume saved build** retries interrupted work
+evidence and pending choices. **Resume after interruption** retries interrupted work
 through the same native cycle. Exhausted, rejected and completed cycles offer no
 continuation. A disappeared browser job is not permission to launch replacement
 work: refresh saved builds and inspect the durable Track.

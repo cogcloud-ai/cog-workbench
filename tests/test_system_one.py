@@ -18,7 +18,7 @@ REQUIRED = ('cog-typesafe', 'cog-system-one-adapter', 'cog-brief-router', 'cog-t
 @unittest.skipUnless(all((ROOT / name / 'COG.md').is_file() for name in REQUIRED), 'System One siblings not checked out')
 class SystemOneCompositionTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix='suite-s1-')
+        self.temp = tempfile.TemporaryDirectory(prefix='suite-s1-',dir=ROOT)
         self.addCleanup(self.temp.cleanup)
         self.suite = Suite(ROOT, Path(self.temp.name) / 'state', journal=lambda x: None)
 

@@ -15,7 +15,7 @@ class SavedBuildTests(unittest.TestCase):
         self.suite=Suite(self.root,self.root/'state',journal=lambda _:None)
         self.cycle=self.builder/'cycles/demo';self.run=self.cycle/'phases/0000/package/runs/child';self.run.mkdir(parents=True)
         self.write(self.run/'input.json',{})
-        self.write(self.run/'pending/design.json',{'artifact':{'kind':'cog-contract'},'payload_sha256':'test','artifact_sha256':'test'})
+        self.write(self.run/'pending/design.json',{'run_id':'child','artifact':{'kind':'cog-contract'},'payload_sha256':'test','artifact_sha256':'test'})
         self.write(self.run/'track.json',{'input_request':str(self.run/'input.json'),'steps':[{'id':'design','status':'awaiting-decision'}]})
         self.write(self.cycle/'cycle.json',{'status':'awaiting-decision','phases':[{'run_dir':str(self.run),'package':str(self.run.parents[1])}]})
     def write(self,path,value):
@@ -44,8 +44,15 @@ class SavedBuildTests(unittest.TestCase):
             Path(args[args.index('--output')+1]).write_text('{}')
             return {}
         with patch.object(self.suite,'call',side_effect=call),patch.object(self.suite,'builder_operation',return_value={'status':'rejected'}) as operation:
-            result=self.suite.resume_builder('demo',{'verdict':'reject','by':'learner','reason':'Wrong contract'})
+            result=self.suite.resume_builder('demo',{'verdict':'reject','by':'learner','reason':'Wrong contract','step':'design','artifact_sha256':'test','run_id':'child'})
             self.assertEqual(result['status'],'rejected');self.assertIn('--decision',operation.call_args.args[0])
+    def test_stale_gate_cannot_accept_unseen_artifact(self):
+        with patch.object(self.suite, 'call') as helper, patch.object(self.suite, 'builder_operation') as operation:
+            with self.assertRaisesRegex(ValueError, 'displayed Gate changed'):
+                self.suite.resume_builder('demo', {'verdict': 'accept', 'by': 'learner',
+                    'step': 'design', 'artifact_sha256': 'old', 'run_id': 'child'})
+        helper.assert_not_called(); operation.assert_not_called()
+
     def test_builder_command_is_declared_fixed_and_scrubs_pixi(self):
         (self.builder/'pixi.toml').write_text('[tasks]\ncycle="python src/op_cycle.py"\n')
         python=self.builder/'.pixi/envs/default/bin/python';python.parent.mkdir(parents=True);python.touch()

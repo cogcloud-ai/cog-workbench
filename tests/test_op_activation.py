@@ -40,12 +40,12 @@ class ActivationTests(unittest.TestCase):
         base = Path(self.temp.name)
         for name in ('cog-author', 'cog-build-evaluator', 'cog-build-candidate', 'cog-verify-candidate', 'op-cog-builder'):
             shutil.copytree(ROOT / name, base / name, ignore=shutil.ignore_patterns('.git', '.pixi', '__pycache__', 'runs', '.op-composition.json'))
-        original = self.suite.activation
-        def fail_last(context, selected):
-            if Path(context).name == 'cog-build-evaluator':
-                raise ValueError('incompatible binding')
-            return original(context, selected)
-        with patch.object(self.suite, 'activation', side_effect=fail_last), self.assertRaisesRegex(ValueError, 'incompatible'):
+        import yaml
+        requirement = base / 'cog-build-evaluator/cog.yaml'
+        value = yaml.safe_load(requirement.read_text())
+        value['extensions']['workbench_composition']['required_features'].append('unsupported-review-feature')
+        requirement.write_text(yaml.safe_dump(value))
+        with self.assertRaisesRegex(ValueError, 'features'):
             self.suite.activate_op(base / 'op-cog-builder', ref)
         self.assertFalse((base / 'cog-author/.op-composition.json').exists())
 
@@ -62,6 +62,30 @@ class ActivationTests(unittest.TestCase):
             relocated.revoke(ref)
             with self.assertRaisesRegex(ValueError, 'revoked'):
                 relocated.load(ref)
+
+    def test_external_state_is_refused_before_creation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            outside = Path(directory) / 'state'
+            with self.assertRaisesRegex(ValueError, 'Suite state'):
+                Suite(ROOT, outside)
+            self.assertFalse(outside.exists())
+
+    def test_repair_selects_manifest_and_custom_state(self):
+        command = self.suite.repair_command(ROOT / 'cog-author', {'binding_id': 'x', 'revision': 1})
+        self.assertIn('--manifest-path', command)
+        self.assertIn(str(self.suite.state), command)
+
+    def test_current_absolute_record_loads_and_legacy_digest_has_migration_hint(self):
+        b = self.harness(); ref = {'binding_id': b['binding_id'], 'revision': 1}
+        path = self.suite.path(ref)
+        entry = json.loads(path.read_text()); entry.pop('sha256')
+        entry['path'] = str(self.suite.root(entry['path']))
+        entry['sha256'] = fixtures.digest(entry); path.write_text(json.dumps(entry))
+        self.assertEqual(self.suite.load(ref)['binding'], b)
+        entry.pop('sha256'); entry['package_sha256'] = 'legacy-format'
+        entry['sha256'] = fixtures.digest(entry); path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 're-admit.*reactivate'):
+            self.suite.load(ref)
 
 
 class BehaviorDigestTests(unittest.TestCase):

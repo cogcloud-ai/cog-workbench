@@ -90,8 +90,8 @@ class ComposedUsageTests(unittest.TestCase):
                 return original(root, task, args, **kwargs)
             # A relocated environment must be reinstalled. Use the existing public
             # author environment only as the test interpreter for cloned source.
-            with patch.object(relocated, 'call', side_effect=call), patch('workbench_suite.sys.executable', str(ROOT / 'cog-author/.pixi/envs/default/bin/python')):
-                result = adapter.invoke(consumer, self.bundle, suite_type=lambda **kw: relocated)
+            with patch.object(Suite, 'call', side_effect=call), patch('workbench_suite.sys.executable', str(ROOT / 'cog-author/.pixi/envs/default/bin/python')):
+                result = adapter.invoke(consumer, self.bundle, suite_type=lambda **kw: (self.assertEqual(kw['state'], state) or Suite(**kw, journal=lambda x: None)))
             self.assertTrue(result['ok'])
             self.assertEqual(result['binding']['composition']['binding'], self.ref)
 

@@ -655,8 +655,8 @@ the manifest still invalidates; reinstalling a different environment without a
 manifest change is not a claim of equivalent execution provenance.
 
 New composition and provider record paths are relative to the workspace.
-Activation requires suite state within that workspace. Existing absolute records
-remain readable in their original location; they need reactivation/re-admission
+Activation requires suite state within that workspace. The fingerprint-format upgrade requires re-admission and reactivation.
+Current-format absolute records remain readable in their original location; they need reactivation/re-admission
 before relocation. The adapter finds the fixed public Workbench sibling in an
 ancestor workspace so nested tutorial consumers work too. Host source remains
 fingerprinted: automatically trusting host updates would weaken provenance.
@@ -685,3 +685,19 @@ latest native pending artifact; only nonterminal actions are offered. Jobs in
 memory may disappear after server restart, while native durable work remains.
 A missing job directs the learner back to saved builds rather than launching a
 second build. Fixed Python task declarations keep free-form commands unavailable.
+## Review corrections: activation upgrade and repair
+
+State containment is checked before any admission side effect. Repair commands
+select the public Workbench manifest and the original state explicitly so they
+work from a consumer directory. Rather than silently accepting a legacy digest,
+the fingerprint-format upgrade requires re-admission and activation; records
+now identify behavior-v1. This costs an explicit migration but preserves package
+change detection. Old hosts receive an actionable adapter fallback message.
+
+## Review corrections: saved Gate decisions
+
+Studio sends the displayed run ID, step and artifact digest. The host refuses
+stale views and passes the explicit step to Smith; selecting whichever Gate is
+currently waiting would risk accepting unseen bytes. Builds record the selected
+binding and resume refuses a different installed provider revision. These are
+local correlation checks, not reviewer authentication.

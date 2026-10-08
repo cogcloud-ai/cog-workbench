@@ -25,13 +25,21 @@ const document={
   querySelectorAll(selector) { return selector==='button' ? buttons.map(id=>document.getElementById(id)) : []; }
 };
 let rows=[];
-const context=vm.createContext({document, setInterval:()=>{}, fetch:async()=>({json:async()=>({catalog:[],bindings:rows,builds:[]})})});
+const context=vm.createContext({document, setInterval:()=>{}, fetch:async()=>({ok:true,json:async()=>({ok:true,catalog:[],bindings:rows,runs:[]})})});
 function binding(id,capability,composition='harness',status='admitted') {
   return {reference:{binding_id:id,revision:1},provider:{id:'test/'+id},capability,composition,status};
 }
 (async()=>{
   vm.runInContext(source,context);
   await new Promise(resolve=>setImmediate(resolve));
+  await vm.runInContext('loadBuilds()',context);
+  assert.equal(elements.get('acceptBuild').disabled,true);
+  assert.equal(elements.get('resumeBuild').disabled,true);
+  vm.runInContext("activeBuild={actions:{decide:true,resume:false}};buildControls()",context);
+  assert.equal(elements.get('acceptBuild').disabled,false);
+  assert.equal(elements.get('resumeBuild').disabled,true);
+  vm.runInContext("activeBuild={actions:{decide:false,resume:false}};buildControls()",context);
+  assert.equal(elements.get('acceptBuild').disabled,true);
   vm.runInContext("handoff={requests:[{}]}; contract={kind:'context'}; author={}; evalPlan={}; packaged='p'; evidence={};",context);
   rows=[binding('decision','system-one/decisions')];
   await vm.runInContext('refresh()',context);

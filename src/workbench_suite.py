@@ -57,6 +57,7 @@ class Suite:
         self.workspace = Path(workspace or HERE.parent).resolve()
         self.state = Path(state or HERE/'var/suite').absolute()
         require(not self.state.is_symlink(), 'State may not be a symlink.')
+        require(self.state.resolve().is_relative_to(self.workspace), 'Suite state must be inside the workbench workspace; choose --state there before admission.')
         self.state.mkdir(parents=True, exist_ok=True, mode=0o700)
         require(self.state.stat().st_uid == os.getuid() and self.state.stat().st_mode & 0o077 == 0, 'Suite state must be owner-only (mode 700).')
         self._journal = journal
@@ -80,9 +81,11 @@ class Suite:
         return self.root(path).relative_to(self.workspace).as_posix()
 
     def repair_command(self, context, ref):
-        return ('pixi run suite -- activate-composition --context ' +
+        return ('pixi run --manifest-path ' + shlex.quote(str(self.workspace / 'cog-workbench/pixi.toml')) +
+                ' suite -- --state ' + shlex.quote(str(self.state)) + ' activate-composition --context ' +
                 shlex.quote(self.relative(context)) + ' --binding-id ' +
                 shlex.quote(ref['binding_id']) + ' --revision ' + str(ref['revision']))
+
 
     def manifest(self, root):
         return cog_package.read_manifest(self.root(root))[0]
@@ -188,7 +191,7 @@ class Suite:
         require(path.is_file() and not path.is_symlink() and not path.with_suffix('.revoked').exists(), 'Binding is missing or revoked.')
         entry = json.loads(path.read_text()); checksum = entry.pop('sha256')
         require(digest(entry) == checksum, 'Binding record integrity failure.')
-        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package changed; create a new binding revision.')
+        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package or fingerprint format changed; re-admit the provider with a new binding revision, then reactivate consumers.')
         b = entry['binding']
         require({'binding_id':b['binding_id'],'revision':b['revision']} == ref and b['state'] == 'admitted', 'Stored binding reference mismatch.')
         if entry.get('host_state'):
@@ -250,7 +253,7 @@ class Suite:
                 b['state']='admitted'
                 b['admission']={'resolver_id':'openteams/cog-workbench/0.2.0','checks':[{'check':'host-admission','passed':True,'detail':'Exact request, declaration, local inspection, composition, locality, features and model dependency checked; declaration evidence only.'}]}
             require(before == package_digest(root), 'Provider changed during admission.')
-            entry={'request':request,'binding':b,'path':self.relative(root),'package_sha256':before,'model_requirement':model_requirement,
+            entry={'request':request,'binding':b,'path':self.relative(root),'package_sha256':before,'package_digest_format':'behavior-v1','model_requirement':model_requirement,
                    'host_state':self.relative(host_state) if host_state else None,'candidate_sha256':digest(candidate_env)}
             entry['sha256']=digest(entry)
             ref={'binding_id':b['binding_id'],'revision':b['revision']}; path=self.path(ref)
@@ -339,7 +342,11 @@ class Suite:
         op = self.root(op)
         # Smith owns the executable Op schema. This is the public sibling source.
         sys.path.insert(0, str(self.workspace / 'cog-smith/templates/op/src'))
-        import op_spec
+        require((self.workspace / 'cog-smith/templates/op/src/op_spec.py').is_file(), 'Install the public cog-smith sibling before activating an Op.')
+        try:
+            import op_spec
+        except ImportError:
+            raise ValueError('Update/install the public cog-smith sibling before activating an Op.') from None
         try:
             spec = op_spec.load(op / 'op.yaml')
         except op_spec.OpSpecError as exc:
@@ -384,7 +391,12 @@ class Suite:
     def start_builder(self, request, binding):
         self.activate_op('op-cog-builder', binding)
         path = self.save('build-inputs', request)
-        return self.builder_operation(['--request', path])
+        result = self.builder_operation(['--request', path])
+        if result.get('cycle_dir'):
+            receipt = self.root(result['cycle_dir']) / 'workbench-binding.json'
+            with receipt.open('x') as stream:
+                json.dump(binding, stream)
+        return result
 
     def builder_document(self, path):
         root = self.root('op-cog-builder')
@@ -434,15 +446,23 @@ class Suite:
 
     def resume_builder(self, ident, decision=None):
         run = self.inspect_builder(ident)
+        receipt = self.root('op-cog-builder') / 'cycles' / ident / 'workbench-binding.json'
+        if receipt.is_file():
+            binding = self.builder_document(receipt)
+            self.load(binding)
+            for consumer in ('cog-author', 'cog-build-evaluator'):
+                installed = json.loads((self.root(consumer) / '.op-composition.json').read_text())
+                require(installed['composition']['binding'] == binding, 'Build provider revision changed; reactivate the original binding before resuming.')
         require(run['actions']['decide'] if decision else run['actions']['resume'], 'This cycle has no such continuation action.')
         args = ['--resume', self.root('op-cog-builder') / 'cycles' / ident]
         if decision:
-            require(set(decision) <= {'verdict', 'by', 'reason'} and decision.get('verdict') in ('accept', 'reject'), 'Choose artifact acceptance or rejection explicitly.')
+            require(set(decision) <= {'verdict', 'by', 'reason', 'step', 'artifact_sha256', 'run_id'} and decision.get('verdict') in ('accept', 'reject'), 'Choose artifact acceptance or rejection explicitly.')
             require(isinstance(decision.get('by'), str) and decision['by'].strip(), 'Name the person deciding.')
+            require(decision.get('step') == run['current_step'] and decision.get('artifact_sha256') == run['pending']['artifact_sha256'] and decision.get('run_id') == run['pending']['run_id'], 'The displayed Gate changed; refresh and review the current artifact before deciding.')
             native_run = Path(run['track']['input_request']).parent
             folder = self.state / 'build-decisions'; folder.mkdir(exist_ok=True, mode=0o700)
             path = folder / (uuid.uuid4().hex + '.json')
-            helper = [native_run, '--by', decision['by'], '--output', path,
+            helper = [native_run, '--step', decision['step'], '--by', decision['by'], '--output', path,
                       '--accept' if decision['verdict'] == 'accept' else '--reject-artifact']
             if decision.get('reason'):
                 helper += ['--reason', decision['reason']]
