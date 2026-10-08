@@ -207,7 +207,7 @@ Keep suite state inside the workspace (the default `cog-workbench/var/suite` doe
 this), and move the whole workspace together. Reinstall each declared Pixi
 environment with `pixi install --locked` after relocation. Owner permissions, integrity,
 provider dependencies, package fingerprints and revocation are still checked.
-Existing absolute records work at their original location; re-admit their provider
+After this fingerprint-format upgrade, re-admit all providers with new binding revisions and reactivate consumers. Current-format absolute records work at their original location; re-admit their provider
 bindings and reactivate consumers to make them portable. Credentials remain local
 configuration and are never copied by these commands.
 

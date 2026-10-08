@@ -26,8 +26,9 @@ def main():
     e=sub.add_parser('evaluate');e.add_argument('--cog',required=True);e.add_argument('--author-request',required=True);e.add_argument('--author-envelope',required=True);e.add_argument('--plan-envelope',required=True);e.add_argument('--binding-id');e.add_argument('--revision',type=int)
     for op in ('check','test','eval','install'):
         c=sub.add_parser(op);c.add_argument('--cog',required=True)
-    args=p.parse_args();suite=Suite(args.workspace,args.state)
+    args=p.parse_args()
     try:
+        suite=Suite(args.workspace,args.state)
         if args.op=='catalog':result=suite.catalog()
         elif args.op=='bindings':result=suite.bindings()
         elif args.op=='select':result=suite.select(read(args.requirement))

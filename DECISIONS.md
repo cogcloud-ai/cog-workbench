@@ -655,9 +655,18 @@ the manifest still invalidates; reinstalling a different environment without a
 manifest change is not a claim of equivalent execution provenance.
 
 New composition and provider record paths are relative to the workspace.
-Activation requires suite state within that workspace. Existing absolute records
-remain readable in their original location; they need reactivation/re-admission
+Activation requires suite state within that workspace. The fingerprint-format upgrade requires re-admission and reactivation.
+Current-format absolute records remain readable in their original location; they need reactivation/re-admission
 before relocation. The adapter finds the fixed public Workbench sibling in an
 ancestor workspace so nested tutorial consumers work too. Host source remains
 fingerprinted: automatically trusting host updates would weaken provenance.
 Stale consumer/host errors now include the exact reactivation command.
+
+## Review corrections: activation upgrade and repair
+
+State containment is checked before any admission side effect. Repair commands
+select the public Workbench manifest and the original state explicitly so they
+work from a consumer directory. Rather than silently accepting a legacy digest,
+the fingerprint-format upgrade requires re-admission and activation; records
+now identify behavior-v1. This costs an explicit migration but preserves package
+change detection. Old hosts receive an actionable adapter fallback message.
