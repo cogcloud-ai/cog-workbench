@@ -31,7 +31,7 @@ class HTTPCompositionTests(unittest.TestCase):
         server=ThreadingHTTPServer(('127.0.0.1',0),Gateway)
         thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
         try:
-            with tempfile.TemporaryDirectory() as tmp,patch.dict(os.environ,{'OPENROUTER_COG_TOKEN':'synthetic-test-token'}):
+            with tempfile.TemporaryDirectory(dir=ROOT) as tmp,patch.dict(os.environ,{'OPENROUTER_COG_TOKEN':'synthetic-test-token'}):
                 s=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
                 model['invocation']={'protocol':'openai-chat-completions-v1','address':f'http://127.0.0.1:{server.server_port}/bindings/binding-author-model/1/v1'}
                 entry={'request':{},'binding':model,'path':str(ROOT/'cog-openrouter'),'package_sha256':package_digest(ROOT/'cog-openrouter'),'host_state':None,'model_requirement':None,'candidate_sha256':'fixture-only'}

@@ -197,7 +197,7 @@ class CodeSuiteTests(unittest.TestCase):
                 suite.evaluate(target,request,envelope,plan_env)
 
     def test_code_brief_handoff_preserves_kind(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
             payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
@@ -208,7 +208,7 @@ class CodeSuiteTests(unittest.TestCase):
             suite.bridge('cog-author','prepare',{'bundle':result['requests'][0]['bundle']})
 
     def test_legacy_unbound_code_choice_is_not_a_build(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
             payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
@@ -222,7 +222,7 @@ class CodeSuiteTests(unittest.TestCase):
 
     def test_native_capture_can_preserve_large_envelopes(self):
         from types import SimpleNamespace
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             body=json.dumps({'payload':{'text':'x'*40000}})
             with patch('workbench_suite.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=body,stderr='')):
