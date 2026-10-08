@@ -661,3 +661,27 @@ before relocation. The adapter finds the fixed public Workbench sibling in an
 ancestor workspace so nested tutorial consumers work too. Host source remains
 fingerprinted: automatically trusting host updates would weaken provenance.
 Stale consumer/host errors now include the exact reactivation command.
+
+## Saved builder lifecycle in Studio (2026-10-08)
+
+Studio delegates start/resume to the public builder's declared `cycle` task and
+accept/reject preparation to Smith's declared `op-decide` task. It reconstructs
+steps, pending Gates, evidence and available actions from native cycle/Track
+files. A second browser-owned workflow or accepting successful review envelopes
+would duplicate lifecycle policy and lose durable acceptance provenance.
+The previous manual workflow remains available in a collapsed advanced section.
+
+A bounded brief, explicit provider revision, owner, round/unit budgets and repair
+paths are the starting form. Criterion IDs are unknown before contract design,
+so learners leave the optional test-evidence links empty; verification retains
+the test observation across accepted criteria without asserting coverage.
+Unlike hiding or removing limits, this exposes the decisions that change how much
+work may run. Invocation units are not monetary billing estimates.
+
+Read endpoints remain loopback-only; writes retain the existing Origin/token
+checks. Evidence is rendered through text content, bounded to package-local
+files, and process environment scrubbing remains in force. Reload reads the
+latest native pending artifact; only nonterminal actions are offered. Jobs in
+memory may disappear after server restart, while native durable work remains.
+A missing job directs the learner back to saved builds rather than launching a
+second build. Fixed Python task declarations keep free-form commands unavailable.

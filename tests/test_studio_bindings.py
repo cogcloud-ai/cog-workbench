@@ -25,7 +25,7 @@ const document={
   querySelectorAll(selector) { return selector==='button' ? buttons.map(id=>document.getElementById(id)) : []; }
 };
 let rows=[];
-const context=vm.createContext({document, fetch:async()=>({json:async()=>({catalog:[],bindings:rows})})});
+const context=vm.createContext({document, setInterval:()=>{}, fetch:async()=>({json:async()=>({catalog:[],bindings:rows,builds:[]})})});
 function binding(id,capability,composition='harness',status='admitted') {
   return {reference:{binding_id:id,revision:1},provider:{id:'test/'+id},capability,composition,status};
 }

@@ -215,3 +215,25 @@ Edits to tests, examples, evals, prose or a lockfile do not invalidate a composi
 Manifest, context, source, scripts, binding and contract edits do. A changed host
 still requires explicit reactivation; the stale error prints the fixing command.
 Do not mistake these fingerprints for an environment attestation or a sandbox.
+
+### Saved builds in Studio
+
+Open `/studio`, connect an interaction provider, then use **Saved Cog builds**.
+Enter a bounded brief and owner, review the default repair paths, and choose
+round/model-turn budgets. **Start saved build** activates the builder's model
+consumers and starts its native cycle. It pauses on contract acceptance before
+source is authored. Read the artifact, name the person deciding, then accept or
+reject; rejection requires a reason. Independent review and verification are
+shown beside the final candidate before its separate acceptance Gate.
+
+Select a saved build after reload or server restart to recover its steps,
+evidence and pending choices. **Resume saved build** retries interrupted work
+through the same native cycle. Exhausted, rejected and completed cycles offer no
+continuation. A disappeared browser job is not permission to launch replacement
+work: refresh saved builds and inspect the durable Track.
+
+These controls delegate to `op-cog-builder`'s declared `cycle` and Smith's
+`op-decide` tasks; install their compatible public revisions first. Model-turn
+units cap declared invocations, including retries, and do not estimate invoices.
+The optional Docker verification policy is configured in the builder request;
+the simple form currently uses explicit trusted-local verification defaults.
