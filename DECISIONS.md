@@ -635,3 +635,29 @@ We rejected listing all harness compositions and relying on the server error:
 a System One binding cannot satisfy the builder's chat consumers, so offering
 it creates an avoidable dead end. Inferring capability from the provider name
 was also rejected because admission already records the authoritative value.
+
+## Whole-Op composition activation and portable records (2026-10-08)
+
+Workbench now reads a validated public Smith Op manifest and activates only its
+`ask-composed` steps, deduplicating consumers. It preflights every consumer and
+binding before writing installations and reports already-current records. An
+alternative was provider auto-selection per step; the explicit binding revision
+is retained so the client cannot silently switch providers or alter Op policy.
+Installation writes are atomic per consumer, not a multi-file transaction; a
+filesystem write failure can leave a subset installed, and rerunning is safe.
+
+Behavior fingerprints cover manifests, context, source, scripts, binding and
+contracts (plus explicit engine/model artifact identity); prose, tests, evals,
+examples and lockfiles do not invalidate compositions. Keeping an all-files
+fingerprint would be conservative but would make ordinary documentation and
+exercise work require needless reactivation. A changed declared dependency in
+the manifest still invalidates; reinstalling a different environment without a
+manifest change is not a claim of equivalent execution provenance.
+
+New composition and provider record paths are relative to the workspace.
+Activation requires suite state within that workspace. Existing absolute records
+remain readable in their original location; they need reactivation/re-admission
+before relocation. The adapter finds the fixed public Workbench sibling in an
+ancestor workspace so nested tutorial consumers work too. Host source remains
+fingerprinted: automatically trusting host updates would weaken provenance.
+Stale consumer/host errors now include the exact reactivation command.

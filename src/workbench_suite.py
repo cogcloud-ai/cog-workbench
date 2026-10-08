@@ -43,9 +43,9 @@ def clean(envelope):
 def package_digest(root):
     root = Path(root)
     paths = []
-    for name in ('COG.md', 'cog.yaml', 'pixi.toml', 'pixi.lock', 'engine.json', 'model-artifact.json'):
+    for name in ('cog.yaml', 'pixi.toml', 'engine.json', 'model-artifact.json'):
         if (root/name).is_file(): paths.append(root/name)
-    for name in ('src', 'scripts', 'context', 'binding', 'contracts', 'tests', 'evals', 'examples'):
+    for name in ('src', 'scripts', 'context', 'binding', 'contracts'):
         if (root/name).is_dir():
             paths += [p for p in (root/name).rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc']
     require(all(not p.is_symlink() and p.resolve().is_relative_to(root.resolve()) for p in paths), 'Package execution files must stay within the package.')
@@ -75,6 +75,14 @@ class Suite:
         root = root.resolve()
         require(root.is_relative_to(self.workspace), 'Package must be inside this workbench workspace.')
         return root
+
+    def relative(self, path):
+        return self.root(path).relative_to(self.workspace).as_posix()
+
+    def repair_command(self, context, ref):
+        return ('pixi run suite -- activate-composition --context ' +
+                shlex.quote(self.relative(context)) + ' --binding-id ' +
+                shlex.quote(ref['binding_id']) + ' --revision ' + str(ref['revision']))
 
     def manifest(self, root):
         return cog_package.read_manifest(self.root(root))[0]
@@ -184,7 +192,7 @@ class Suite:
         b = entry['binding']
         require({'binding_id':b['binding_id'],'revision':b['revision']} == ref and b['state'] == 'admitted', 'Stored binding reference mismatch.')
         if entry.get('host_state'):
-            observed = clean(self.call(entry['path'], 'inspect-binding', ['--state-dir', entry['host_state'], '--binding-id', ref['binding_id'], '--revision', ref['revision']]))
+            observed = clean(self.call(entry['path'], 'inspect-binding', ['--state-dir', self.root(entry['host_state']), '--binding-id', ref['binding_id'], '--revision', ref['revision']]))
             require(observed == b, 'Gateway admission changed or was revoked.')
         if b['model_binding']:
             dep = self.load(b['model_binding'])
@@ -242,8 +250,8 @@ class Suite:
                 b['state']='admitted'
                 b['admission']={'resolver_id':'openteams/cog-workbench/0.2.0','checks':[{'check':'host-admission','passed':True,'detail':'Exact request, declaration, local inspection, composition, locality, features and model dependency checked; declaration evidence only.'}]}
             require(before == package_digest(root), 'Provider changed during admission.')
-            entry={'request':request,'binding':b,'path':str(root),'package_sha256':before,'model_requirement':model_requirement,
-                   'host_state':host_state,'candidate_sha256':digest(candidate_env)}
+            entry={'request':request,'binding':b,'path':self.relative(root),'package_sha256':before,'model_requirement':model_requirement,
+                   'host_state':self.relative(host_state) if host_state else None,'candidate_sha256':digest(candidate_env)}
             entry['sha256']=digest(entry)
             ref={'binding_id':b['binding_id'],'revision':b['revision']}; path=self.path(ref)
             with (self.state/'.lock').open('a+') as lock:
@@ -259,12 +267,12 @@ class Suite:
     def revoke(self, ref):
         entry=self.load(ref)
         if entry.get('host_state'):
-            clean(self.call(entry['path'],'revoke',['--state-dir',entry['host_state'],'--binding-id',ref['binding_id'],'--revision',ref['revision']]))
+            clean(self.call(entry['path'],'revoke',['--state-dir',self.root(entry['host_state']),'--binding-id',ref['binding_id'],'--revision',ref['revision']]))
         self.path(ref).with_suffix('.revoked').touch(mode=0o600)
         self.journal('suite-binding-revoked',binding=ref)
         return {'revoked':ref}
 
-    def compose(self, context, ref):
+    def compose(self, context, ref, *, persist=True):
         root=self.root(context); manifest=self.manifest(root)
         ext=(manifest.get('extensions') or {}).get('workbench_composition')
         require(ext is not None, 'Context does not declare external composition support.')
@@ -284,39 +292,81 @@ class Suite:
         # admitted only for composed-system use, never bare-model evaluations.
         if b['composition']=='model+harness':
             require(ext['evidence_scope']=='composed-system', 'Subscription harness cannot provide bare-model evaluation evidence.')
-        value={'composition':1,'consumer':{'id':manifest['id'],'version':str(manifest['version'])},'path':str(root),
+        value={'composition':1,'consumer':{'id':manifest['id'],'version':str(manifest['version'])},'path':self.relative(root),
                'context_sha256':package_digest(root),'binding':ref,'model_binding':b['model_binding'],
                'evidence_scope':'composed-system','checks':'packaged-before-and-after'}
         value['sha256']=digest(value)
+        if not persist:
+            return value
         path=self.save('compositions',value)
         self.journal('suite-composed',consumer=value['consumer'],binding=ref)
         return {'record_path':path,**value}
 
-    def activate_composition(self, context, ref):
-        """Install an explicit local binding for the consumer's usage adapter."""
+    def activation(self, context, ref):
+        """Validate before writing any activation records."""
         root = self.root(context)
         require(any(i.get('task') == 'ask-composed' and i.get('audience') == 'usage'
                     for i in self.manifest(root)['interfaces']), 'Consumer has no composed usage interface.')
-        composition = self.compose(root, ref)
-        value = {'composition': composition, 'state': str(self.state),
+        composition = self.compose(root, ref, persist=False)
+        value = {'installation': 2, 'composition': composition, 'state': self.relative(self.state),
                  'host_sha256': package_digest(HERE)}
         value['sha256'] = digest(value)
         path = root / '.op-composition.json'
         require(not path.is_symlink(), 'Installed composition may not be a symlink.')
+        return path, value
+
+    def install_activation(self, path, value):
+        if path.is_file():
+            try:
+                if json.loads(path.read_text()) == value:
+                    return {'path': str(path), 'composition': value['composition'], 'status': 'already-current'}
+            except ValueError:
+                pass
+        root = path.parent
         with tempfile.NamedTemporaryFile(mode='w', dir=root, delete=False) as f:
             json.dump(value, f, indent=2)
             temp = Path(f.name)
         os.chmod(temp, 0o600)
         os.replace(temp, path)
-        self.journal('suite-composition-activated', consumer=composition['consumer'], binding=ref, path=str(path))
-        return {'path': str(path), 'composition': composition}
+        self.journal('suite-composition-activated', consumer=value['composition']['consumer'], binding=value['composition']['binding'], path=str(path))
+        return {'path': str(path), 'composition': value['composition'], 'status': 'activated'}
+
+    def activate_composition(self, context, ref):
+        return self.install_activation(*self.activation(context, ref))
+
+    def activate_op(self, op, ref):
+        """Activate declared composed steps; never select or replace a provider."""
+        op = self.root(op)
+        # Smith owns the executable Op schema. This is the public sibling source.
+        sys.path.insert(0, str(self.workspace / 'cog-smith/templates/op/src'))
+        import op_spec
+        try:
+            spec = op_spec.load(op / 'op.yaml')
+        except op_spec.OpSpecError as exc:
+            raise ValueError(str(exc)) from None
+        consumers = {}
+        skipped = []
+        for step in spec.ordered:
+            declaration = step['cog']
+            root = self.root(op / declaration['source'])
+            manifest = self.manifest(root)
+            require(manifest['id'] == declaration['id'] and str(manifest['version']) == str(declaration['version']),
+                    'Op step ' + step['id'] + ' names a different Cog identity or version.')
+            if declaration['task'] != 'ask-composed':
+                skipped.append(step['id'])
+                continue
+            consumers.setdefault(root, []).append(step['id'])
+        # Preflight every binding/consumer before the first installation write.
+        prepared = [(steps, self.activation(root, ref)) for root, steps in consumers.items()]
+        activated = [dict(self.install_activation(*record), steps=steps) for steps, record in prepared]
+        return {'op': self.relative(op), 'consumers': activated, 'skipped_steps': skipped}
 
     def invoke(self, composition, bundle):
         value=copy.deepcopy(composition);value.pop('record_path',None)
         checksum=value.pop('sha256')
         require(digest(value)==checksum, 'Composition record integrity failure.')
         root=self.root(value['path'])
-        require(package_digest(root)==value['context_sha256'], 'Context package changed; recompose before invoking.')
+        require(package_digest(root)==value['context_sha256'], 'Context package changed; run ' + self.repair_command(root, value['binding']))
         entry=self.load(value['binding']);b=entry['binding']
         require(value['model_binding']==b['model_binding'], 'Composition dependency mismatch.')
         prepared=self.bridge(root,'prepare',{'bundle':bundle})

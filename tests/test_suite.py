@@ -14,13 +14,13 @@ ROOT=Path(__file__).resolve().parents[2]
 
 class SuiteTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='suite-test-');self.addCleanup(self.temp.cleanup)
+        self.temp=tempfile.TemporaryDirectory(prefix='.suite-test-', dir=ROOT);self.addCleanup(self.temp.cleanup)
         self.suite=Suite(ROOT,Path(self.temp.name)/'state',journal=lambda x:None)
     def seed_model(self, locality="cloud"):
         b=json.loads((ROOT/'cog-turn-harness/tests/model-binding.json').read_text())
         b.update(binding_id='binding-author-model',revision=1,features=['text-generation','json-output'],locality=locality)
         root=ROOT/'cog-openrouter'
-        entry={'request':{},'binding':b,'path':str(root),'package_sha256':package_digest(root),'model_requirement':None,'host_state':None,'candidate_sha256':'test-only'}
+        entry={'request':{},'binding':b,'path':self.suite.relative(root),'package_sha256':package_digest(root),'model_requirement':None,'host_state':None,'candidate_sha256':'test-only'}
         entry['sha256']=digest(entry);ref={'binding_id':b['binding_id'],'revision':b['revision']}
         self.suite.path(ref).write_text(json.dumps(entry));return ref
     def harness(self):

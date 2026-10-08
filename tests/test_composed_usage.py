@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 import test_suite as fixtures
 ROOT = fixtures.ROOT
-from workbench_suite import digest
+from workbench_suite import Suite, digest
 
 spec = importlib.util.spec_from_file_location('composed_usage', ROOT/'cog-workbench/bridges/composed_usage.py')
 adapter = importlib.util.module_from_spec(spec)
@@ -63,8 +63,37 @@ class ComposedUsageTests(unittest.TestCase):
     def test_stale_consumer_refused(self):
         with (self.root/'context/system.md').open('a') as f:
             f.write('\nchanged\n')
-        with self.assertRaisesRegex(ValueError, 'changed'):
+        with self.assertRaisesRegex(ValueError, 'activate-composition.*--binding-id.*--revision'):
             self.invoke()
+
+    def test_prose_and_evidence_edits_keep_the_composition_current(self):
+        for name in ('COG.md', 'tests/new-fixture.json', 'examples/new.json'):
+            path = self.root / name
+            path.write_text(path.read_text() + '\n' if path.exists() else '{}')
+        self.assertTrue(self.invoke()['ok'])
+
+    def test_installed_composition_invokes_after_workspace_relocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            moved = Path(directory).resolve()
+            ignore = shutil.ignore_patterns('.git', '.pixi', '__pycache__', 'var', 'runs')
+            for name in ('cog-workbench', 'cog-turn-harness', 'cog-openrouter'):
+                shutil.copytree(ROOT / name, moved / name, ignore=ignore)
+            consumer = moved / self.root.relative_to(ROOT)
+            shutil.copytree(self.root, consumer, ignore=ignore)
+            state = moved / self.suite.state.relative_to(ROOT)
+            shutil.copytree(self.suite.state, state)
+            relocated = Suite(moved, state, journal=lambda x: None)
+            original = relocated.call
+            def call(root, task, args=(), **kwargs):
+                if task == 'turn':
+                    return self.fake_call(root, task, args, **kwargs)
+                return original(root, task, args, **kwargs)
+            # A relocated environment must be reinstalled. Use the existing public
+            # author environment only as the test interpreter for cloned source.
+            with patch.object(relocated, 'call', side_effect=call), patch('workbench_suite.sys.executable', str(ROOT / 'cog-author/.pixi/envs/default/bin/python')):
+                result = adapter.invoke(consumer, self.bundle, suite_type=lambda **kw: relocated)
+            self.assertTrue(result['ok'])
+            self.assertEqual(result['binding']['composition']['binding'], self.ref)
 
     def test_stale_host_refused(self):
         path = self.root/'.op-composition.json'
