@@ -53,6 +53,16 @@ class SavedBuildTests(unittest.TestCase):
                     'step': 'design', 'artifact_sha256': 'old', 'run_id': 'child'})
         helper.assert_not_called(); operation.assert_not_called()
 
+    def test_changed_provider_revision_refuses_resume(self):
+        binding={'binding_id':'original','revision':1}
+        self.write(self.cycle/'workbench-binding.json',binding)
+        for consumer in ('cog-author','cog-build-evaluator'):
+            self.write(self.root/consumer/'.op-composition.json',{'composition':{'binding':{'binding_id':'other','revision':1}}})
+        with patch.object(self.suite,'load',return_value={}),patch.object(self.suite,'builder_operation') as operation:
+            with self.assertRaisesRegex(ValueError,'provider revision changed'):
+                self.suite.resume_builder('demo',{'verdict':'accept','by':'learner','step':'design','artifact_sha256':'test','run_id':'child'})
+        operation.assert_not_called()
+
     def test_builder_command_is_declared_fixed_and_scrubs_pixi(self):
         (self.builder/'pixi.toml').write_text('[tasks]\ncycle="python src/op_cycle.py"\n')
         python=self.builder/'.pixi/envs/default/bin/python';python.parent.mkdir(parents=True);python.touch()
