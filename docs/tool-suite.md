@@ -207,8 +207,8 @@ Keep suite state inside the workspace (the default `cog-workbench/var/suite` doe
 this), and move the whole workspace together. Reinstall each declared Pixi
 environment with `pixi install --locked` after relocation. Owner permissions, integrity,
 provider dependencies, package fingerprints and revocation are still checked.
-After this fingerprint-format upgrade, re-admit all providers with new binding revisions and reactivate consumers. Current-format absolute records work at their original location; re-admit their provider
-bindings and reactivate consumers to make them portable. Credentials remain local
+After this fingerprint-format upgrade, re-admit all providers with new binding revisions and reactivate consumers. Records from before the upgrade can be revoked, but cannot be used until
+the provider is re-admitted and consumers are reactivated. Credentials remain local
 configuration and are never copied by these commands.
 
 Edits to tests, examples, evals, prose or a lockfile do not invalidate a composition.

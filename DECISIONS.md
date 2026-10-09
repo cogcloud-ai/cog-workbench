@@ -656,8 +656,8 @@ manifest change is not a claim of equivalent execution provenance.
 
 New composition and provider record paths are relative to the workspace.
 Activation requires suite state within that workspace. The fingerprint-format upgrade requires re-admission and reactivation.
-Current-format absolute records remain readable in their original location; they need reactivation/re-admission
-before relocation. The adapter finds the fixed public Workbench sibling in an
+Records from before the upgrade can be revoked, but cannot be used until
+provider re-admission and consumer reactivation. The adapter finds the fixed public Workbench sibling in an
 ancestor workspace so nested tutorial consumers work too. Host source remains
 fingerprinted: automatically trusting host updates would weaken provenance.
 Stale consumer/host errors now include the exact reactivation command.
