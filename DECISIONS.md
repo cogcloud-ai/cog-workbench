@@ -719,3 +719,12 @@ with the old cycle receipt retained for compatibility. Missing consumer activati
 provides an exact activate-op command. Package changes require a new build because
 resuming a saved build must retain its original provider revision. Refused cycles
 are terminal and expose the native refusal reason.
+
+## Keep evidence readable when admission is lost
+
+Inspect saved native Tracks even if Workbench's admission receipt is missing,
+invalid or from an unsupported builder. Expose a binding_problem separately and
+disable continuation; resume refuses it before any invocation. Blocking all
+inspection hid useful completed evidence when ignored state was cleared. After
+start returns, verify the cycle retained the exact input path; legacy builders
+without it receive an update instruction, and no unbound continuation is offered.

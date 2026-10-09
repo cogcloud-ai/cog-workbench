@@ -401,7 +401,11 @@ class Suite:
         with Path(path + '.binding.json').open('x') as stream:
             json.dump(binding, stream)
             stream.flush(); os.fsync(stream.fileno())
-        return self.builder_operation(['--request', path])
+        result = self.builder_operation(['--request', path])
+        if result.get('cycle_dir'):
+            state = self.builder_document(Path(result['cycle_dir']) / 'cycle.json')
+            require(state.get('input_request') == path, 'Update the public builder: it must retain the original input_request before invoking Cogs.')
+        return result
 
     def builder_binding(self, state, directory):
         if state.get('input_request'):
@@ -410,9 +414,16 @@ class Suite:
                 receipt = Path(str(request) + '.binding.json')
                 require(not receipt.is_symlink() and receipt.is_file(), 'Build admission receipt is missing; inspect the saved input before continuing.')
                 require(receipt.stat().st_size <= 4096, 'Build admission receipt is too large.')
-                return json.loads(receipt.read_text())
+                ref = json.loads(receipt.read_text())
+                self.path(ref)  # Validate the stored reference without requiring admission to view.
+                return ref
         receipt = directory / 'workbench-binding.json'
-        return self.builder_document(receipt) if receipt.is_file() else None
+        if receipt.is_file():
+            ref = self.builder_document(receipt)
+            self.path(ref)
+            return ref
+        require(state.get('input_request'), 'Build admission metadata is missing; update the public builder before starting another build.')
+        return None
 
     def builder_document(self, path):
         root = self.root('op-cog-builder')
@@ -443,11 +454,16 @@ class Suite:
         for step in (track or {}).get('steps', []):
             if step['id'] in ('materialize', 'verify', 'review') and step.get('envelope'):
                 evidence[step['id']] = self.builder_document(step['envelope'])
+        binding, binding_problem = None, None
+        try:
+            binding = self.builder_binding(state, directory)
+        except (ValueError, OSError, KeyError) as exc:
+            binding_problem = str(exc)
         terminal = state['status'] in ('completed', 'completed-with-problems', 'rejected', 'refused', 'budget-exhausted')
         return {'id': ident, 'status': state['status'], 'current_step': current['id'] if current else None,
-                'binding': self.builder_binding(state, directory),
+                'binding': binding, 'binding_problem': binding_problem,
                 'cycle': state, 'track': track, 'pending': pending, 'evidence': evidence,
-                'actions': {'resume': not terminal and pending is None, 'decide': not terminal and pending is not None}}
+                'actions': {'resume': not terminal and binding_problem is None and pending is None, 'decide': not terminal and binding_problem is None and pending is not None}}
 
     def builder_runs(self):
         root = self.root('op-cog-builder') / 'cycles'
@@ -463,6 +479,7 @@ class Suite:
 
     def resume_builder(self, ident, decision=None):
         run = self.inspect_builder(ident)
+        require(run['binding_problem'] is None, run['binding_problem'])
         binding = run['binding']
         if binding is not None:
             try:

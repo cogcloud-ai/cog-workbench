@@ -17,7 +17,7 @@ class SavedBuildTests(unittest.TestCase):
         self.write(self.run/'input.json',{})
         self.write(self.run/'pending/design.json',{'run_id':'child','artifact':{'kind':'cog-contract'},'payload_sha256':'test','artifact_sha256':'test'})
         self.write(self.run/'track.json',{'input_request':str(self.run/'input.json'),'steps':[{'id':'design','status':'awaiting-decision'}]})
-        self.write(self.cycle/'cycle.json',{'status':'awaiting-decision','phases':[{'run_dir':str(self.run),'package':str(self.run.parents[1])}]})
+        self.write(self.cycle/'cycle.json',{'status':'awaiting-decision','input_request':str(self.root/'native-input.json'),'phases':[{'run_dir':str(self.run),'package':str(self.run.parents[1])}]})
     def write(self,path,value):
         path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value))
     def test_reload_reads_native_gate_without_process_memory(self):
@@ -98,3 +98,41 @@ class SavedBuildTests(unittest.TestCase):
         self.write(self.cycle/'workbench-binding.json',{'binding_id':'original','revision':1})
         with patch.object(self.suite,'load',side_effect=ValueError('Provider package or fingerprint format changed')),self.assertRaisesRegex(ValueError,'Start a new build'):
             self.suite.resume_builder('demo')
+
+    def test_missing_admission_retains_gate_and_evidence_but_disables_continuation(self):
+        request=self.suite.state/'build-inputs/input.json'
+        self.write(request,{'brief':'fictional'})
+        self.write(self.cycle/'cycle.json',{'status':'paused','input_request':str(request),'phases':[{'run_dir':str(self.run),'package':str(self.run.parents[1])}]})
+        self.write(self.run/'review.json',{'payload':{'reason':'Retained synthetic evidence'}})
+        track=json.loads((self.run/'track.json').read_text())
+        track['steps'].append({'id':'review','status':'passed','envelope':str(self.run/'review.json')})
+        self.write(self.run/'track.json',track)
+        for status in ('paused','completed'):
+            state=json.loads((self.cycle/'cycle.json').read_text());state['status']=status;self.write(self.cycle/'cycle.json',state)
+            run=self.suite.inspect_builder('demo')
+            self.assertEqual(run['status'],status);self.assertIn('receipt is missing',run['binding_problem'])
+            self.assertEqual(run['pending']['run_id'],'child')
+            self.assertEqual(run['evidence']['review']['payload']['reason'],'Retained synthetic evidence')
+            self.assertEqual(run['actions'],{'resume':False,'decide':False})
+            self.assertEqual(self.suite.builder_runs()[0]['status'],status)
+            with patch.object(self.suite,'builder_operation') as invoke,self.assertRaisesRegex(ValueError,'receipt is missing'):
+                self.suite.resume_builder('demo')
+            invoke.assert_not_called()
+
+    def test_legacy_builder_without_input_identity_is_refused_after_start_and_on_resume(self):
+        self.write(self.cycle/'cycle.json',{'status':'running','phases':[]})
+        with patch.object(self.suite,'activate_op'),patch.object(self.suite,'builder_operation',return_value={'cycle_dir':str(self.cycle),'status':'running'}),self.assertRaisesRegex(ValueError,'Update the public builder'):
+            self.suite.start_builder({'brief':'fictional'},{'binding_id':'original','revision':1})
+        run=self.suite.inspect_builder('demo')
+        self.assertIn('metadata is missing',run['binding_problem']);self.assertFalse(run['actions']['resume'])
+        with patch.object(self.suite,'builder_operation') as invoke,self.assertRaisesRegex(ValueError,'metadata is missing'):
+            self.suite.resume_builder('demo')
+        invoke.assert_not_called()
+
+    def test_malformed_receipt_is_displayed_separately_from_native_cycle(self):
+        request=self.suite.state/'build-inputs/input.json';self.write(request,{})
+        self.write(Path(str(request)+'.binding.json'),[])
+        self.write(self.cycle/'cycle.json',{'status':'running','input_request':str(request),'phases':[]})
+        value=self.suite.inspect_builder('demo')
+        self.assertEqual(value['status'],'running');self.assertIn('Invalid binding reference',value['binding_problem'])
+        self.assertEqual(value['actions'],{'decide':False,'resume':False})

@@ -237,3 +237,10 @@ These controls delegate to `op-cog-builder`'s declared `cycle` and Smith's
 units cap declared invocations, including retries, and do not estimate invoices.
 The optional Docker verification policy is configured in the builder request;
 the simple form currently uses explicit trusted-local verification defaults.
+
+Saved-build admission is retained before the first child invocation. If a receipt
+is lost, steps and evidence remain readable, but resume and decisions are disabled.
+Use the reported `activate-op` command with the original binding revision when
+consumer activation is missing. A changed provider package requires a new build
+after re-admission; saved builds cannot adopt a replacement revision. Update the
+public builder if it does not retain the original input path.
