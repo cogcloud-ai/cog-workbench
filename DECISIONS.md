@@ -701,3 +701,21 @@ stale views and passes the explicit step to Smith; selecting whichever Gate is
 currently waiting would risk accepting unseen bytes. Builds record the selected
 binding and resume refuses a different installed provider revision. These are
 local correlation checks, not reviewer authentication.
+## Revocation after package or fingerprint migration
+
+Revocation reads and verifies the local record's checksum, exact admitted
+reference, containment and revocation state without requiring today's package
+digest or dependency admission. Requiring full invocation readiness prevented
+retiring old records after migration. Invocation still uses the complete checks;
+revocation invokes only a provider's declared revoke interface when applicable.
+
+## Durable admission before a build starts
+
+Save the exact binding reference beside the Workbench build input before invoking
+the builder. Smith records that input path before Cog calls. This survives an
+interrupted first turn; writing a receipt only after child return left a gap.
+Inspection reads only receipts beside inputs in this Workbench's state directory,
+with the old cycle receipt retained for compatibility. Missing consumer activation
+provides an exact activate-op command. Package changes require a new build because
+resuming a saved build must retain its original provider revision. Refused cycles
+are terminal and expose the native refusal reason.

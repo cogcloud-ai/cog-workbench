@@ -186,14 +186,20 @@ class Suite:
         os.chmod(path, 0o600)
         return str(path)
 
-    def load(self, ref):
+    def read_binding(self, ref):
         path = self.path(ref)
         require(path.is_file() and not path.is_symlink() and not path.with_suffix('.revoked').exists(), 'Binding is missing or revoked.')
         entry = json.loads(path.read_text()); checksum = entry.pop('sha256')
         require(digest(entry) == checksum, 'Binding record integrity failure.')
-        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package or fingerprint format changed; re-admit the provider with a new binding revision, then reactivate consumers.')
         b = entry['binding']
         require({'binding_id':b['binding_id'],'revision':b['revision']} == ref and b['state'] == 'admitted', 'Stored binding reference mismatch.')
+        self.root(entry['path'])  # Preserve suite containment for revocation.
+        return entry
+
+    def load(self, ref):
+        entry = self.read_binding(ref)
+        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package or fingerprint format changed; re-admit the provider with a new binding revision, then reactivate consumers.')
+        b = entry['binding']
         if entry.get('host_state'):
             observed = clean(self.call(entry['path'], 'inspect-binding', ['--state-dir', self.root(entry['host_state']), '--binding-id', ref['binding_id'], '--revision', ref['revision']]))
             require(observed == b, 'Gateway admission changed or was revoked.')
@@ -268,7 +274,7 @@ class Suite:
         return b
 
     def revoke(self, ref):
-        entry=self.load(ref)
+        entry=self.read_binding(ref)
         if entry.get('host_state'):
             clean(self.call(entry['path'],'revoke',['--state-dir',self.root(entry['host_state']),'--binding-id',ref['binding_id'],'--revision',ref['revision']]))
         self.path(ref).with_suffix('.revoked').touch(mode=0o600)
@@ -391,12 +397,22 @@ class Suite:
     def start_builder(self, request, binding):
         self.activate_op('op-cog-builder', binding)
         path = self.save('build-inputs', request)
-        result = self.builder_operation(['--request', path])
-        if result.get('cycle_dir'):
-            receipt = self.root(result['cycle_dir']) / 'workbench-binding.json'
-            with receipt.open('x') as stream:
-                json.dump(binding, stream)
-        return result
+        # Retain admission before starting a child that may be interrupted.
+        with Path(path + '.binding.json').open('x') as stream:
+            json.dump(binding, stream)
+            stream.flush(); os.fsync(stream.fileno())
+        return self.builder_operation(['--request', path])
+
+    def builder_binding(self, state, directory):
+        if state.get('input_request'):
+            request = Path(state['input_request'])
+            if request.resolve().is_relative_to((self.state / 'build-inputs').resolve()):
+                receipt = Path(str(request) + '.binding.json')
+                require(not receipt.is_symlink() and receipt.is_file(), 'Build admission receipt is missing; inspect the saved input before continuing.')
+                require(receipt.stat().st_size <= 4096, 'Build admission receipt is too large.')
+                return json.loads(receipt.read_text())
+        receipt = directory / 'workbench-binding.json'
+        return self.builder_document(receipt) if receipt.is_file() else None
 
     def builder_document(self, path):
         root = self.root('op-cog-builder')
@@ -427,8 +443,9 @@ class Suite:
         for step in (track or {}).get('steps', []):
             if step['id'] in ('materialize', 'verify', 'review') and step.get('envelope'):
                 evidence[step['id']] = self.builder_document(step['envelope'])
-        terminal = state['status'] in ('completed', 'completed-with-problems', 'rejected', 'budget-exhausted')
+        terminal = state['status'] in ('completed', 'completed-with-problems', 'rejected', 'refused', 'budget-exhausted')
         return {'id': ident, 'status': state['status'], 'current_step': current['id'] if current else None,
+                'binding': self.builder_binding(state, directory),
                 'cycle': state, 'track': track, 'pending': pending, 'evidence': evidence,
                 'actions': {'resume': not terminal and pending is None, 'decide': not terminal and pending is not None}}
 
@@ -446,13 +463,22 @@ class Suite:
 
     def resume_builder(self, ident, decision=None):
         run = self.inspect_builder(ident)
-        receipt = self.root('op-cog-builder') / 'cycles' / ident / 'workbench-binding.json'
-        if receipt.is_file():
-            binding = self.builder_document(receipt)
-            self.load(binding)
+        binding = run['binding']
+        if binding is not None:
+            try:
+                self.load(binding)
+            except ValueError as exc:
+                if 'package or fingerprint' in str(exc):
+                    raise ValueError('The original provider package changed; this saved build cannot adopt a new revision. Start a new build.') from None
+                raise
+            repair = (self.repair_command(self.root('cog-author'), binding)
+                      .replace('activate-composition --context cog-author', 'activate-op --op op-cog-builder'))
             for consumer in ('cog-author', 'cog-build-evaluator'):
-                installed = json.loads((self.root(consumer) / '.op-composition.json').read_text())
-                require(installed['composition']['binding'] == binding, 'Build provider revision changed; reactivate the original binding before resuming.')
+                try:
+                    installed = json.loads((self.root(consumer) / '.op-composition.json').read_text())
+                except (OSError, ValueError):
+                    raise ValueError('Build consumer activation is missing; run ' + repair) from None
+                require(installed['composition']['binding'] == binding, 'Build provider revision changed; reactivate its original binding: ' + repair)
         require(run['actions']['decide'] if decision else run['actions']['resume'], 'This cycle has no such continuation action.')
         args = ['--resume', self.root('op-cog-builder') / 'cycles' / ident]
         if decision:

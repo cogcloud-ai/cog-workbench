@@ -27,7 +27,7 @@ class SavedBuildTests(unittest.TestCase):
         self.assertEqual(value['pending']['artifact']['kind'],'cog-contract')
         self.assertEqual(other.builder_runs()[0]['current_step'],'design')
     def test_rejection_and_exhaustion_offer_no_continuation(self):
-        for status in ('rejected','budget-exhausted','completed'):
+        for status in ('rejected','refused','budget-exhausted','completed'):
             self.write(self.cycle/'cycle.json',{'status':status,'phases':[]})
             self.assertEqual(self.suite.inspect_builder('demo')['actions'],{'decide':False,'resume':False})
             with self.assertRaises(ValueError):self.suite.resume_builder('demo')
@@ -72,3 +72,29 @@ class SavedBuildTests(unittest.TestCase):
             self.assertEqual(run.call_args.args[0][-1],'literal $(unchanged)')
         (self.builder/'pixi.toml').write_text('[tasks]\ncycle="sh arbitrary"\n')
         with self.assertRaises(ValueError):self.suite.builder_operation([])
+
+    def test_interrupted_first_turn_keeps_binding_and_missing_activation_has_command(self):
+        binding={'binding_id':'original','revision':1}
+        def interrupt(args):
+            path=args[1]
+            self.write(self.cycle/'cycle.json',{'status':'running','input_request':path,'phases':[]})
+            raise OSError('interrupted first turn')
+        with patch.object(self.suite,'activate_op'),patch.object(self.suite,'builder_operation',side_effect=interrupt),self.assertRaises(OSError):
+            self.suite.start_builder({'brief':'fictional'},binding)
+        other=Suite(self.root,self.root/'state',journal=lambda _:None)
+        self.assertEqual(other.inspect_builder('demo')['binding'],binding)
+        (self.root/'cog-author').mkdir()
+        with patch.object(other,'load',return_value={}),patch.object(other,'builder_operation') as operation:
+            with self.assertRaisesRegex(ValueError,'activate-op --op op-cog-builder.*--binding-id original --revision 1'):
+                other.resume_builder('demo')
+        operation.assert_not_called()
+        for consumer in ('cog-author','cog-build-evaluator'):
+            self.write(self.root/consumer/'.op-composition.json',{'composition':{'binding':{'binding_id':'new','revision':2}}})
+        with patch.object(other,'load',return_value={}),patch.object(other,'builder_operation') as operation,self.assertRaisesRegex(ValueError,'provider revision changed'):
+            other.resume_builder('demo')
+        operation.assert_not_called()
+
+    def test_changed_provider_package_explains_why_new_build_is_required(self):
+        self.write(self.cycle/'workbench-binding.json',{'binding_id':'original','revision':1})
+        with patch.object(self.suite,'load',side_effect=ValueError('Provider package or fingerprint format changed')),self.assertRaisesRegex(ValueError,'Start a new build'):
+            self.suite.resume_builder('demo')
