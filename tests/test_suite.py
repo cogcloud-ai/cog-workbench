@@ -14,13 +14,13 @@ ROOT=Path(__file__).resolve().parents[2]
 
 class SuiteTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory(prefix='suite-test-');self.addCleanup(self.temp.cleanup)
+        self.temp=tempfile.TemporaryDirectory(prefix='.suite-test-', dir=ROOT);self.addCleanup(self.temp.cleanup)
         self.suite=Suite(ROOT,Path(self.temp.name)/'state',journal=lambda x:None)
     def seed_model(self, locality="cloud"):
         b=json.loads((ROOT/'cog-turn-harness/tests/model-binding.json').read_text())
         b.update(binding_id='binding-author-model',revision=1,features=['text-generation','json-output'],locality=locality)
         root=ROOT/'cog-openrouter'
-        entry={'request':{},'binding':b,'path':str(root),'package_sha256':package_digest(root),'model_requirement':None,'host_state':None,'candidate_sha256':'test-only'}
+        entry={'request':{},'binding':b,'path':self.suite.relative(root),'package_sha256':package_digest(root),'model_requirement':None,'host_state':None,'candidate_sha256':'test-only'}
         entry['sha256']=digest(entry);ref={'binding_id':b['binding_id'],'revision':b['revision']}
         self.suite.path(ref).write_text(json.dumps(entry));return ref
     def harness(self):
@@ -64,6 +64,24 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(composition['model_binding'],{'binding_id':'binding-author-model','revision':1})
         self.suite.revoke(ref)
         with self.assertRaises(ValueError):self.suite.load(ref)
+    def test_legacy_digest_can_be_revoked_but_integrity_and_reference_are_required(self):
+        ref = self.seed_model(); path = self.suite.path(ref)
+        entry = json.loads(path.read_text()); entry.pop('sha256')
+        entry['package_sha256'] = 'legacy-digest'
+        entry['sha256'] = digest(entry); path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'fingerprint format changed'):
+            self.suite.load(ref)
+        self.assertEqual(self.suite.revoke(ref), {'revoked':ref})
+        path.with_suffix('.revoked').unlink()
+        entry['binding']['revision'] = 2
+        path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'integrity'):
+            self.suite.revoke(ref)
+        entry.pop('sha256'); entry['sha256'] = digest(entry)
+        path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'reference mismatch'):
+            self.suite.revoke(ref)
+
     def test_revoked_model_invalidates_harness(self):
         b=self.harness();self.suite.revoke({'binding_id':'binding-author-model','revision':1})
         with self.assertRaises(ValueError):self.suite.load({'binding_id':b['binding_id'],'revision':1})
@@ -197,7 +215,7 @@ class CodeSuiteTests(unittest.TestCase):
                 suite.evaluate(target,request,envelope,plan_env)
 
     def test_code_brief_handoff_preserves_kind(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
             payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
@@ -208,7 +226,7 @@ class CodeSuiteTests(unittest.TestCase):
             suite.bridge('cog-author','prepare',{'bundle':result['requests'][0]['bundle']})
 
     def test_legacy_unbound_code_choice_is_not_a_build(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             request=json.loads((ROOT/'cog-op-designer/examples/sample-bundle.json').read_text())
             payload=json.loads((ROOT/'cog-op-designer/context/output-example.json').read_text())
@@ -222,7 +240,7 @@ class CodeSuiteTests(unittest.TestCase):
 
     def test_native_capture_can_preserve_large_envelopes(self):
         from types import SimpleNamespace
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmp:
             suite=Suite(ROOT,Path(tmp)/'state',journal=lambda x:None)
             body=json.dumps({'payload':{'text':'x'*40000}})
             with patch('workbench_suite.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=body,stderr='')):

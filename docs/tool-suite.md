@@ -185,3 +185,33 @@ Studio uses this same operation. Packaging and case execution also verify and
 expand the references. Hash mismatch or an ambiguous material name refuses the
 handoff. References never access local paths, and executable code cannot use
 references. The evaluator's fingerprint covers the expanded bytes.
+
+### Activate every composed Cog in an Op
+
+From Workbench, after admitting the binding:
+
+```sh
+pixi run suite -- activate-op --op op-cog-builder --binding-id BINDING_ID --revision 1
+```
+
+Use a workspace-relative Op path (the default workspace is Workbench's parent).
+This validates the Op with public Smith, checks each step's declared Cog identity,
+and activates each `ask-composed` consumer once. Other usage tasks are skipped.
+The result lists `activated` and `already-current` consumers and their steps.
+Every composed consumer must accept the selected binding; incompatible Cogs fail
+preflight before installation. An Op mixing chat and System One capabilities
+needs separate compatible activations with `activate-composition`.
+
+New installed compositions and binding records use workspace-relative paths.
+Keep suite state inside the workspace (the default `cog-workbench/var/suite` does
+this), and move the whole workspace together. Reinstall each declared Pixi
+environment with `pixi install --locked` after relocation. Owner permissions, integrity,
+provider dependencies, package fingerprints and revocation are still checked.
+After this fingerprint-format upgrade, re-admit all providers with new binding revisions and reactivate consumers. Records from before the upgrade can be revoked, but cannot be used until
+the provider is re-admitted and consumers are reactivated. Credentials remain local
+configuration and are never copied by these commands.
+
+Edits to tests, examples, evals, prose or a lockfile do not invalidate a composition.
+Manifest, context, source, scripts, binding and contract edits do. A changed host
+still requires explicit reactivation; the stale error prints the fixing command.
+Do not mistake these fingerprints for an environment attestation or a sandbox.

@@ -635,3 +635,46 @@ We rejected listing all harness compositions and relying on the server error:
 a System One binding cannot satisfy the builder's chat consumers, so offering
 it creates an avoidable dead end. Inferring capability from the provider name
 was also rejected because admission already records the authoritative value.
+
+## Whole-Op composition activation and portable records (2026-10-08)
+
+Workbench now reads a validated public Smith Op manifest and activates only its
+`ask-composed` steps, deduplicating consumers. It preflights every consumer and
+binding before writing installations and reports already-current records. An
+alternative was provider auto-selection per step; the explicit binding revision
+is retained so the client cannot silently switch providers or alter Op policy.
+Installation writes are atomic per consumer, not a multi-file transaction; a
+filesystem write failure can leave a subset installed, and rerunning is safe.
+
+Behavior fingerprints cover manifests, context, source, scripts, binding and
+contracts (plus explicit engine/model artifact identity); prose, tests, evals,
+examples and lockfiles do not invalidate compositions. Keeping an all-files
+fingerprint would be conservative but would make ordinary documentation and
+exercise work require needless reactivation. A changed declared dependency in
+the manifest still invalidates; reinstalling a different environment without a
+manifest change is not a claim of equivalent execution provenance.
+
+New composition and provider record paths are relative to the workspace.
+Activation requires suite state within that workspace. The fingerprint-format upgrade requires re-admission and reactivation.
+Records from before the upgrade can be revoked, but cannot be used until
+provider re-admission and consumer reactivation. The adapter finds the fixed public Workbench sibling in an
+ancestor workspace so nested tutorial consumers work too. Host source remains
+fingerprinted: automatically trusting host updates would weaken provenance.
+Stale consumer/host errors now include the exact reactivation command.
+
+## Review corrections: activation upgrade and repair
+
+State containment is checked before any admission side effect. Repair commands
+select the public Workbench manifest and the original state explicitly so they
+work from a consumer directory. Rather than silently accepting a legacy digest,
+the fingerprint-format upgrade requires re-admission and activation; records
+now identify behavior-v1. This costs an explicit migration but preserves package
+change detection. Old hosts receive an actionable adapter fallback message.
+
+## Revocation after package or fingerprint migration
+
+Revocation reads and verifies the local record's checksum, exact admitted
+reference, containment and revocation state without requiring today's package
+digest or dependency admission. Requiring full invocation readiness prevented
+retiring old records after migration. Invocation still uses the complete checks;
+revocation invokes only a provider's declared revoke interface when applicable.
