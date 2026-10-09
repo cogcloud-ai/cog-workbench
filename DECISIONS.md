@@ -670,3 +670,11 @@ work from a consumer directory. Rather than silently accepting a legacy digest,
 the fingerprint-format upgrade requires re-admission and activation; records
 now identify behavior-v1. This costs an explicit migration but preserves package
 change detection. Old hosts receive an actionable adapter fallback message.
+
+## Revocation after package or fingerprint migration
+
+Revocation reads and verifies the local record's checksum, exact admitted
+reference, containment and revocation state without requiring today's package
+digest or dependency admission. Requiring full invocation readiness prevented
+retiring old records after migration. Invocation still uses the complete checks;
+revocation invokes only a provider's declared revoke interface when applicable.

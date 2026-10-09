@@ -186,14 +186,20 @@ class Suite:
         os.chmod(path, 0o600)
         return str(path)
 
-    def load(self, ref):
+    def read_binding(self, ref):
         path = self.path(ref)
         require(path.is_file() and not path.is_symlink() and not path.with_suffix('.revoked').exists(), 'Binding is missing or revoked.')
         entry = json.loads(path.read_text()); checksum = entry.pop('sha256')
         require(digest(entry) == checksum, 'Binding record integrity failure.')
-        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package or fingerprint format changed; re-admit the provider with a new binding revision, then reactivate consumers.')
         b = entry['binding']
         require({'binding_id':b['binding_id'],'revision':b['revision']} == ref and b['state'] == 'admitted', 'Stored binding reference mismatch.')
+        self.root(entry['path'])  # Preserve suite containment for revocation.
+        return entry
+
+    def load(self, ref):
+        entry = self.read_binding(ref)
+        require(package_digest(self.root(entry['path'])) == entry['package_sha256'], 'Provider package or fingerprint format changed; re-admit the provider with a new binding revision, then reactivate consumers.')
+        b = entry['binding']
         if entry.get('host_state'):
             observed = clean(self.call(entry['path'], 'inspect-binding', ['--state-dir', self.root(entry['host_state']), '--binding-id', ref['binding_id'], '--revision', ref['revision']]))
             require(observed == b, 'Gateway admission changed or was revoked.')
@@ -268,7 +274,7 @@ class Suite:
         return b
 
     def revoke(self, ref):
-        entry=self.load(ref)
+        entry=self.read_binding(ref)
         if entry.get('host_state'):
             clean(self.call(entry['path'],'revoke',['--state-dir',self.root(entry['host_state']),'--binding-id',ref['binding_id'],'--revision',ref['revision']]))
         self.path(ref).with_suffix('.revoked').touch(mode=0o600)

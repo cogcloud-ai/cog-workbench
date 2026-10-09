@@ -64,6 +64,24 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(composition['model_binding'],{'binding_id':'binding-author-model','revision':1})
         self.suite.revoke(ref)
         with self.assertRaises(ValueError):self.suite.load(ref)
+    def test_legacy_digest_can_be_revoked_but_integrity_and_reference_are_required(self):
+        ref = self.seed_model(); path = self.suite.path(ref)
+        entry = json.loads(path.read_text()); entry.pop('sha256')
+        entry['package_sha256'] = 'legacy-digest'
+        entry['sha256'] = digest(entry); path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'fingerprint format changed'):
+            self.suite.load(ref)
+        self.assertEqual(self.suite.revoke(ref), {'revoked':ref})
+        path.with_suffix('.revoked').unlink()
+        entry['binding']['revision'] = 2
+        path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'integrity'):
+            self.suite.revoke(ref)
+        entry.pop('sha256'); entry['sha256'] = digest(entry)
+        path.write_text(json.dumps(entry))
+        with self.assertRaisesRegex(ValueError, 'reference mismatch'):
+            self.suite.revoke(ref)
+
     def test_revoked_model_invalidates_harness(self):
         b=self.harness();self.suite.revoke({'binding_id':'binding-author-model','revision':1})
         with self.assertRaises(ValueError):self.suite.load({'binding_id':b['binding_id'],'revision':1})
