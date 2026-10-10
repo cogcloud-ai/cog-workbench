@@ -119,6 +119,28 @@ class SavedBuildTests(unittest.TestCase):
                 self.suite.resume_builder('demo')
             invoke.assert_not_called()
 
+    def test_start_accepts_resolved_input_identity_through_state_aliases(self):
+        state=self.root/'state';state.mkdir(exist_ok=True)
+        alias=self.root/'state-alias';alias.symlink_to(state,target_is_directory=True)
+        (state/'child').mkdir(mode=0o700)
+        (state/'nested').mkdir()
+        binding={'binding_id':'original','revision':1}
+        for location in (alias/'child',state/'nested/..'):
+            with self.subTest(state=location):
+                suite=Suite(self.root,location,journal=lambda _:None)
+                def start(args):
+                    request=Path(args[1]).resolve()
+                    self.write(self.cycle/'cycle.json',{'status':'running','input_request':str(request),'phases':[]})
+                    return {'cycle_dir':str(self.cycle),'status':'running'}
+                with patch.object(suite,'activate_op'),patch.object(suite,'builder_operation',side_effect=start):
+                    self.assertEqual(suite.start_builder({'brief':'fictional'},binding)['status'],'running')
+                self.assertEqual(suite.inspect_builder('demo')['binding'],binding)
+
+    def test_start_refuses_a_different_resolved_input_identity(self):
+        self.write(self.cycle/'cycle.json',{'status':'running','input_request':str(self.root/'other.json'),'phases':[]})
+        with patch.object(self.suite,'activate_op'),patch.object(self.suite,'builder_operation',return_value={'cycle_dir':str(self.cycle)}),self.assertRaisesRegex(ValueError,'Update the public builder'):
+            self.suite.start_builder({'brief':'fictional'},{'binding_id':'original','revision':1})
+
     def test_legacy_builder_without_input_identity_is_refused_after_start_and_on_resume(self):
         self.write(self.cycle/'cycle.json',{'status':'running','phases':[]})
         with patch.object(self.suite,'activate_op'),patch.object(self.suite,'builder_operation',return_value={'cycle_dir':str(self.cycle),'status':'running'}),self.assertRaisesRegex(ValueError,'Update the public builder'):

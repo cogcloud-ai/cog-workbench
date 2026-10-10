@@ -404,7 +404,9 @@ class Suite:
         result = self.builder_operation(['--request', path])
         if result.get('cycle_dir'):
             state = self.builder_document(Path(result['cycle_dir']) / 'cycle.json')
-            require(state.get('input_request') == path, 'Update the public builder: it must retain the original input_request before invoking Cogs.')
+            recorded = state.get('input_request')
+            require(isinstance(recorded, str) and bool(recorded) and Path(recorded).resolve() == Path(path).resolve(),
+                    'Update the public builder: it must retain the original input_request before invoking Cogs.')
         return result
 
     def builder_binding(self, state, directory):

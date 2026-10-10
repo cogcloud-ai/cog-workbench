@@ -728,3 +728,13 @@ disable continuation; resume refuses it before any invocation. Blocking all
 inspection hid useful completed evidence when ignored state was cleared. After
 start returns, verify the cycle retained the exact input path; legacy builders
 without it receive an update instruction, and no unbound continuation is offered.
+
+## Compare saved input identity after resolving filesystem aliases
+
+Compare the returned cycle's input path with the saved request after resolving
+both paths. Smith records a resolved path, while Workbench state can contain a
+symlink or parent segment. Literal string equality falsely diagnosed these builds
+as using an outdated builder. Resolving only the saved side would assume all
+builders normalize paths; resolving both sides preserves file identity without
+changing where Workbench writes its state. Missing or different input identities
+remain refused, and admission receipts remain subject to the existing checks.
