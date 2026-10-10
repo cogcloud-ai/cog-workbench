@@ -85,3 +85,10 @@ that license.
 
 See the [suite guide](https://github.com/cogcloud-ai/cog-op-builder/blob/main/docs/repositories.md)
 for repository roles, supported setup, and current limitations.
+
+Builder admission is retained before the first child invocation, including an
+interrupted first turn. Missing consumer activation can be restored with the
+reported `activate-op` command using the original binding revision. If the
+provider package itself changes, admit it anew and start a new build; a saved
+build cannot adopt a replacement revision. Terminal refusals retain their reason
+and have no resume action.

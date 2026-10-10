@@ -662,6 +662,29 @@ ancestor workspace so nested tutorial consumers work too. Host source remains
 fingerprinted: automatically trusting host updates would weaken provenance.
 Stale consumer/host errors now include the exact reactivation command.
 
+## Saved builder lifecycle in Studio (2026-10-08)
+
+Studio delegates start/resume to the public builder's declared `cycle` task and
+accept/reject preparation to Smith's declared `op-decide` task. It reconstructs
+steps, pending Gates, evidence and available actions from native cycle/Track
+files. A second browser-owned workflow or accepting successful review envelopes
+would duplicate lifecycle policy and lose durable acceptance provenance.
+The previous manual workflow remains available in a collapsed advanced section.
+
+A bounded brief, explicit provider revision, owner, round/unit budgets and repair
+paths are the starting form. Criterion IDs are unknown before contract design,
+so learners leave the optional test-evidence links empty; verification retains
+the test observation across accepted criteria without asserting coverage.
+Unlike hiding or removing limits, this exposes the decisions that change how much
+work may run. Invocation units are not monetary billing estimates.
+
+Read endpoints remain loopback-only; writes retain the existing Origin/token
+checks. Evidence is rendered through text content, bounded to package-local
+files, and process environment scrubbing remains in force. Reload reads the
+latest native pending artifact; only nonterminal actions are offered. Jobs in
+memory may disappear after server restart, while native durable work remains.
+A missing job directs the learner back to saved builds rather than launching a
+second build. Fixed Python task declarations keep free-form commands unavailable.
 ## Review corrections: activation upgrade and repair
 
 State containment is checked before any admission side effect. Repair commands
@@ -671,6 +694,13 @@ the fingerprint-format upgrade requires re-admission and activation; records
 now identify behavior-v1. This costs an explicit migration but preserves package
 change detection. Old hosts receive an actionable adapter fallback message.
 
+## Review corrections: saved Gate decisions
+
+Studio sends the displayed run ID, step and artifact digest. The host refuses
+stale views and passes the explicit step to Smith; selecting whichever Gate is
+currently waiting would risk accepting unseen bytes. Builds record the selected
+binding and resume refuses a different installed provider revision. These are
+local correlation checks, not reviewer authentication.
 ## Revocation after package or fingerprint migration
 
 Revocation reads and verifies the local record's checksum, exact admitted
@@ -678,3 +708,33 @@ reference, containment and revocation state without requiring today's package
 digest or dependency admission. Requiring full invocation readiness prevented
 retiring old records after migration. Invocation still uses the complete checks;
 revocation invokes only a provider's declared revoke interface when applicable.
+
+## Durable admission before a build starts
+
+Save the exact binding reference beside the Workbench build input before invoking
+the builder. Smith records that input path before Cog calls. This survives an
+interrupted first turn; writing a receipt only after child return left a gap.
+Inspection reads only receipts beside inputs in this Workbench's state directory,
+with the old cycle receipt retained for compatibility. Missing consumer activation
+provides an exact activate-op command. Package changes require a new build because
+resuming a saved build must retain its original provider revision. Refused cycles
+are terminal and expose the native refusal reason.
+
+## Keep evidence readable when admission is lost
+
+Inspect saved native Tracks even if Workbench's admission receipt is missing,
+invalid or from an unsupported builder. Expose a binding_problem separately and
+disable continuation; resume refuses it before any invocation. Blocking all
+inspection hid useful completed evidence when ignored state was cleared. After
+start returns, verify the cycle retained the exact input path; legacy builders
+without it receive an update instruction, and no unbound continuation is offered.
+
+## Compare saved input identity after resolving filesystem aliases
+
+Compare the returned cycle's input path with the saved request after resolving
+both paths. Smith records a resolved path, while Workbench state can contain a
+symlink or parent segment. Literal string equality falsely diagnosed these builds
+as using an outdated builder. Resolving only the saved side would assume all
+builders normalize paths; resolving both sides preserves file identity without
+changing where Workbench writes its state. Missing or different input identities
+remain refused, and admission receipts remain subject to the existing checks.

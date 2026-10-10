@@ -22,13 +22,15 @@ def local_host(handler):
 
 def start(suite, body):
     action=body.get('action')
-    require_actions={'bind','invoke','handoff','package','snapshot','verify','revoke','evaluate','gateway'}
+    require_actions={'bind','invoke','handoff','package','snapshot','verify','revoke','evaluate','gateway','build-start','build-resume'}
     if action not in require_actions:raise ValueError('Unknown suite action.')
     ident=str(uuid.uuid4())
     with LOCK:JOBS[ident]={'status':'working','action':action}
     def work():
         try:
             if action=='bind':result=suite.bind(body['provider'],body['request'])
+            elif action=='build-start':result=suite.start_builder(body['request'],body['binding'])
+            elif action=='build-resume':result=suite.resume_builder(body['id'],body.get('decision'))
             elif action=='revoke':result=suite.revoke(body['binding'])
             elif action=='gateway':
                 import shlex
@@ -37,7 +39,7 @@ def start(suite, body):
                 from urllib.parse import urlsplit
                 port=urlsplit(entry['binding']['configuration']['gateway_base_url']).port
                 # Fixed host-owned state path and validated integer port; no user command.
-                result=MANAGER.start(entry['path'],'serve',extra_args='--state-dir '+shlex.quote(entry['host_state'])+' --port '+str(port))
+                result=MANAGER.start(str(suite.root(entry['path'])),'serve',extra_args='--state-dir '+shlex.quote(str(suite.root(entry['host_state'])))+' --port '+str(port))
             elif action=='evaluate':result=suite.evaluate(body['path'],body['author_request'],body['author_envelope'],body['plan_envelope'],body.get('binding'))
             elif action=='invoke':
                 composition=suite.compose(body['context'],body['binding'])
@@ -63,6 +65,13 @@ def get(handler,route,q,journal):
         handler._send(200,html.encode(),'text/html; charset=utf-8');return True
     if not route.startswith('/api/suite/'):return False
     suite=Suite(journal=journal)
+    if route in ('/api/suite/builds', '/api/suite/build'):
+        try:
+            result = {'runs': suite.builder_runs()} if route.endswith('builds') else suite.inspect_builder(q.get('id'))
+            handler._send(200, result)
+        except (ValueError, OSError, KeyError) as exc:
+            handler._send(400, {'error': str(exc)})
+        return True
     if route=='/api/suite/catalog':result={'catalog':suite.catalog(),'bindings':suite.bindings()}
     elif route=='/api/suite/job':
         with LOCK:result=JOBS.get(q.get('id'),{'status':'missing'})

@@ -24,14 +24,31 @@ const document={
   createElement() { return element(); },
   querySelectorAll(selector) { return selector==='button' ? buttons.map(id=>document.getElementById(id)) : []; }
 };
-let rows=[];
-const context=vm.createContext({document, fetch:async()=>({json:async()=>({catalog:[],bindings:rows})})});
+let rows=[], saved=[], savedBuild=null;
+const context=vm.createContext({document, setInterval:()=>{}, fetch:async(url)=>({ok:true,json:async()=>url.startsWith('/api/suite/build?')?savedBuild:({catalog:[],bindings:rows,runs:saved})})});
 function binding(id,capability,composition='harness',status='admitted') {
   return {reference:{binding_id:id,revision:1},provider:{id:'test/'+id},capability,composition,status};
 }
 (async()=>{
   vm.runInContext(source,context);
   await new Promise(resolve=>setImmediate(resolve));
+  await vm.runInContext('loadBuilds()',context);
+  assert.equal(elements.get('acceptBuild').disabled,true);
+  assert.equal(elements.get('resumeBuild').disabled,true);
+  saved=[{id:'saved',status:'paused',current_step:'design'}];
+  savedBuild={id:'saved',status:'paused',current_step:'design',actions:{decide:true,resume:false},
+    cycle:{phases:[{}],max_attempts:3,cost_units_reserved:1,max_cost_units:12},
+    track:{steps:[{id:'design',status:'awaiting-decision'}]},evidence:{},
+    pending:{run_id:'child',artifact_sha256:'exact',artifact:{id:'restored-contract'}}};
+  await vm.runInContext('loadBuilds("saved")',context);
+  assert.ok(elements.get('gateArtifact').textContent.includes('restored-contract'));
+  assert.equal(elements.get('gateChoices').hidden,false);
+  assert.equal(elements.get('acceptBuild').disabled,false);
+  assert.equal(elements.get('resumeBuild').disabled,true);
+  savedBuild={...savedBuild,status:'budget-exhausted',pending:null,actions:{decide:false,resume:false}};
+  await vm.runInContext('loadBuilds("saved")',context);
+  assert.equal(elements.get('gateChoices').hidden,true);
+  assert.equal(elements.get('acceptBuild').disabled,true);
   vm.runInContext("handoff={requests:[{}]}; contract={kind:'context'}; author={}; evalPlan={}; packaged='p'; evidence={};",context);
   rows=[binding('decision','system-one/decisions')];
   await vm.runInContext('refresh()',context);

@@ -374,6 +374,147 @@ class Suite:
         activated = [dict(self.install_activation(*record), steps=steps) for steps, record in prepared]
         return {'op': self.relative(op), 'consumers': activated, 'skipped_steps': skipped}
 
+    def builder_operation(self, args):
+        """Invoke the fixed public builder's declared cycle task, argv only."""
+        root = self.root('op-cog-builder')
+        with (root / 'pixi.toml').open('rb') as stream:
+            task = tomllib.load(stream).get('tasks', {}).get('cycle')
+        command = task.get('cmd') if isinstance(task, dict) else task
+        require(command == 'python src/op_cycle.py', 'Update the public builder: its declared cycle task is required.')
+        python = root / '.pixi/envs/default/bin/python'
+        require(python.is_file(), 'Install the builder environment with pixi install in op-cog-builder.')
+        self.journal('suite-builder-start', operation='cycle')
+        env = {key: value for key, value in os.environ.items() if not key.startswith('PIXI_')}
+        result = subprocess.run([str(python), 'src/op_cycle.py', *map(str, args)], cwd=root,
+                                env=env, capture_output=True, text=True)
+        self.journal('suite-builder-exit', exit_code=result.returncode)
+        try:
+            output = json.loads(result.stdout)
+        except ValueError:
+            raise ValueError('Builder returned no readable status; inspect its installation and retained Tracks.') from None
+        return {'exit_code': result.returncode, **output}
+
+    def start_builder(self, request, binding):
+        self.activate_op('op-cog-builder', binding)
+        path = self.save('build-inputs', request)
+        # Retain admission before starting a child that may be interrupted.
+        with Path(path + '.binding.json').open('x') as stream:
+            json.dump(binding, stream)
+            stream.flush(); os.fsync(stream.fileno())
+        result = self.builder_operation(['--request', path])
+        if result.get('cycle_dir'):
+            state = self.builder_document(Path(result['cycle_dir']) / 'cycle.json')
+            recorded = state.get('input_request')
+            require(isinstance(recorded, str) and bool(recorded) and Path(recorded).resolve() == Path(path).resolve(),
+                    'Update the public builder: it must retain the original input_request before invoking Cogs.')
+        return result
+
+    def builder_binding(self, state, directory):
+        if state.get('input_request'):
+            request = Path(state['input_request'])
+            if request.resolve().is_relative_to((self.state / 'build-inputs').resolve()):
+                receipt = Path(str(request) + '.binding.json')
+                require(not receipt.is_symlink() and receipt.is_file(), 'Build admission receipt is missing; inspect the saved input before continuing.')
+                require(receipt.stat().st_size <= 4096, 'Build admission receipt is too large.')
+                ref = json.loads(receipt.read_text())
+                self.path(ref)  # Validate the stored reference without requiring admission to view.
+                return ref
+        receipt = directory / 'workbench-binding.json'
+        if receipt.is_file():
+            ref = self.builder_document(receipt)
+            self.path(ref)
+            return ref
+        require(state.get('input_request'), 'Build admission metadata is missing; update the public builder before starting another build.')
+        return None
+
+    def builder_document(self, path):
+        root = self.root('op-cog-builder')
+        path = Path(path)
+        require(not path.is_symlink() and path.resolve().is_relative_to(root), 'Builder evidence must stay in its package.')
+        require(path.stat().st_size <= 8 * 1024 * 1024, 'Builder document is too large to display.')
+        return json.loads(path.read_text())
+
+    def inspect_builder(self, ident):
+        require(isinstance(ident, str) and re.fullmatch(r'[A-Za-z0-9_-]+', ident), 'Invalid builder cycle identity.')
+        directory = self.root('op-cog-builder') / 'cycles' / ident
+        state = self.builder_document(directory / 'cycle.json')
+        phase = state['phases'][-1] if state.get('phases') else None
+        track = self.builder_document(Path(phase['run_dir']) / 'track.json') if phase and phase.get('run_dir') else None
+        # A cycle can be interrupted before its child run path is recorded.
+        if phase and track is None:
+            package = Path(phase['package'])
+            require(package.resolve().is_relative_to(directory.resolve()), 'Phase package escaped its cycle.')
+            tracks = list((package / 'runs').glob('*/track.json'))
+            if len(tracks) == 1:
+                track = self.builder_document(tracks[0])
+        current = next((step for step in (track or {}).get('steps', []) if step['status'] in ('awaiting-decision', 'running', 'failed', 'denied')), None)
+        pending = None
+        if current and current['status'] == 'awaiting-decision':
+            run = Path(track['input_request']).parent
+            pending = self.builder_document(run / 'pending' / (current['id'] + '.json'))
+        evidence = {}
+        for step in (track or {}).get('steps', []):
+            if step['id'] in ('materialize', 'verify', 'review') and step.get('envelope'):
+                evidence[step['id']] = self.builder_document(step['envelope'])
+        binding, binding_problem = None, None
+        try:
+            binding = self.builder_binding(state, directory)
+        except (ValueError, OSError, KeyError) as exc:
+            binding_problem = str(exc)
+        terminal = state['status'] in ('completed', 'completed-with-problems', 'rejected', 'refused', 'budget-exhausted')
+        return {'id': ident, 'status': state['status'], 'current_step': current['id'] if current else None,
+                'binding': binding, 'binding_problem': binding_problem,
+                'cycle': state, 'track': track, 'pending': pending, 'evidence': evidence,
+                'actions': {'resume': not terminal and binding_problem is None and pending is None, 'decide': not terminal and binding_problem is None and pending is not None}}
+
+    def builder_runs(self):
+        root = self.root('op-cog-builder') / 'cycles'
+        result = []
+        for path in sorted(root.glob('*/cycle.json'), reverse=True):
+            try:
+                run = self.inspect_builder(path.parent.name)
+                result.append({key: run[key] for key in ('id', 'status', 'current_step', 'actions')})
+            except (ValueError, OSError, KeyError):
+                result.append({'id': path.parent.name, 'status': 'unreadable', 'current_step': None,
+                               'actions': {'resume': False, 'decide': False}})
+        return result
+
+    def resume_builder(self, ident, decision=None):
+        run = self.inspect_builder(ident)
+        require(run['binding_problem'] is None, run['binding_problem'])
+        binding = run['binding']
+        if binding is not None:
+            try:
+                self.load(binding)
+            except ValueError as exc:
+                if 'package or fingerprint' in str(exc):
+                    raise ValueError('The original provider package changed; this saved build cannot adopt a new revision. Start a new build.') from None
+                raise
+            repair = (self.repair_command(self.root('cog-author'), binding)
+                      .replace('activate-composition --context cog-author', 'activate-op --op op-cog-builder'))
+            for consumer in ('cog-author', 'cog-build-evaluator'):
+                try:
+                    installed = json.loads((self.root(consumer) / '.op-composition.json').read_text())
+                except (OSError, ValueError):
+                    raise ValueError('Build consumer activation is missing; run ' + repair) from None
+                require(installed['composition']['binding'] == binding, 'Build provider revision changed; reactivate its original binding: ' + repair)
+        require(run['actions']['decide'] if decision else run['actions']['resume'], 'This cycle has no such continuation action.')
+        args = ['--resume', self.root('op-cog-builder') / 'cycles' / ident]
+        if decision:
+            require(set(decision) <= {'verdict', 'by', 'reason', 'step', 'artifact_sha256', 'run_id'} and decision.get('verdict') in ('accept', 'reject'), 'Choose artifact acceptance or rejection explicitly.')
+            require(isinstance(decision.get('by'), str) and decision['by'].strip(), 'Name the person deciding.')
+            require(decision.get('step') == run['current_step'] and decision.get('artifact_sha256') == run['pending']['artifact_sha256'] and decision.get('run_id') == run['pending']['run_id'], 'The displayed Gate changed; refresh and review the current artifact before deciding.')
+            native_run = Path(run['track']['input_request']).parent
+            folder = self.state / 'build-decisions'; folder.mkdir(exist_ok=True, mode=0o700)
+            path = folder / (uuid.uuid4().hex + '.json')
+            helper = [native_run, '--step', decision['step'], '--by', decision['by'], '--output', path,
+                      '--accept' if decision['verdict'] == 'accept' else '--reject-artifact']
+            if decision.get('reason'):
+                helper += ['--reason', decision['reason']]
+            self.call('cog-smith', 'op-decide', helper)
+            args += ['--decision', path]
+        return self.builder_operation(args)
+
     def invoke(self, composition, bundle):
         value=copy.deepcopy(composition);value.pop('record_path',None)
         checksum=value.pop('sha256')
