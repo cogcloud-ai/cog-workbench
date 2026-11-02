@@ -9,6 +9,8 @@ platforms = ["osx-arm64", "linux-64"]
 [dependencies]
 python = ">=3.11"
 pyyaml = "*"
+# trust-store floor: 2026.10.23 drops the compromised eMudhra emSign roots
+ca-certificates = ">=2026.10.23"
 
 [tasks]
 # Inspector card + affordances for any Cog package:
