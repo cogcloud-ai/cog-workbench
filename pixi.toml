@@ -5,6 +5,7 @@ version = "0.1.0"
 description = "The gap-filled reference client: schema-driven forms with file pickers, runnable operations with live logs, working chat, activity journal. An invocation environment with its authority made explicit."
 channels = ["conda-forge"]
 platforms = ["osx-arm64", "linux-64"]
+requires-pixi = ">=0.82.1"
 
 [dependencies]
 python = ">=3.11"
